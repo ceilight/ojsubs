@@ -4,18 +4,20 @@ fn main() {
     let count: usize = io::stdin()
         .lock()
         .lines()
-        .map(|x| {
-            let s = x.unwrap();
-            let outstr = s.split(" | ").nth(1).unwrap();
-            outstr
+        .map(|line| {
+            let line = line.unwrap();
+            line
+                .split(" | ")
+                .nth(1)
+                .unwrap()
                 .split(" ")
-                .filter(|x| {
-                    match x.len() {
+                .filter(|s| {
+                    match s.len() {
                         2 | 4 | 3 | 7 => true,
                         _ => false,
                     }
                 })
-                .collect::<Vec<&str>>()
+                .collect::<Vec<_>>()
                 .len()
         })
         .sum();
