@@ -52,7 +52,7 @@ fn main() {
                     } else {
                         2
                     };
-                    (i, h)
+                    (i, n)
                 })
                 .collect();
             for (i, n) in v.into_iter().rev() {
