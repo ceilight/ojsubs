@@ -30,24 +30,28 @@ impl Board {
     fn get_score(&self) -> u32 {
         self.0
             .iter()
-            .map(|row| 
+            .map(|row| {
                 row.iter()
                     .filter(|(_, called)| *called == false)
                     .map(|(number, _)| *number)
-                    .sum::<u32>())
+                    .sum::<u32>()
+            })
             .sum()
     }
 }
 
 fn main() {
     let lines: Vec<String> = io::stdin().lock().lines().map(|l| l.unwrap()).collect();
-    let sequence: Vec<u32> = lines[0].split(",").map(|n| n.parse::<u32>().unwrap()).collect();
+    let sequence: Vec<u32> = lines[0]
+        .split(",")
+        .map(|n| n.parse::<u32>().unwrap())
+        .collect();
 
     let mut boards: Vec<Board> = vec![];
     let mut base = 2usize;
     loop {
         let mut rows: Vec<Vec<(u32, bool)>> = vec![];
-        for i in base..base+5 {
+        for i in base..base + 5 {
             let row: Vec<(u32, bool)> = lines[i]
                 .split_whitespace()
                 .map(|x| (x.parse::<u32>().unwrap(), false))
@@ -55,7 +59,7 @@ fn main() {
             rows.push(row);
         }
         boards.push(Board(rows));
-        if base+6 >= lines.len() {
+        if base + 6 >= lines.len() {
             break;
         }
         base += 6;

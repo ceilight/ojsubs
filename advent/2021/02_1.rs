@@ -12,14 +12,17 @@ struct Move(MoveType, i32);
 impl Move {
     fn from_input(s: &str) -> Self {
         let tokens: Vec<&str> = s.split(" ").collect();
-        Self(match tokens[0] {
-            "forward" => MoveType::Forward,
-            "up" => MoveType::Up,
-            "down" => MoveType::Down,
-            _ => {
-                panic!("what did you mean by this bruh");
-            }
-        }, tokens[1].parse::<i32>().unwrap())
+        Self(
+            match tokens[0] {
+                "forward" => MoveType::Forward,
+                "up" => MoveType::Up,
+                "down" => MoveType::Down,
+                _ => {
+                    panic!("what did you mean by this bruh");
+                }
+            },
+            tokens[1].parse::<i32>().unwrap(),
+        )
     }
 }
 
@@ -41,9 +44,8 @@ impl Point {
 }
 
 fn main() {
-    let stdin = io::stdin();
     let mut submarine = Point::default();
-    for line in stdin.lock().lines() {
+    for line in io::stdin().lock().lines() {
         let cmd = Move::from_input(&line.unwrap());
         submarine.apply(&cmd);
     }

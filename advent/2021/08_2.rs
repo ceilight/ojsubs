@@ -1,5 +1,5 @@
-use std::io::{self, BufRead};
 use std::collections::{HashMap, HashSet};
+use std::io::{self, BufRead};
 
 fn main() {
     let tot: u32 = io::stdin()
@@ -16,10 +16,22 @@ fn main() {
                 .collect::<Vec<_>>();
 
             let mut seg = HashMap::<u8, _>::new();
-            seg.insert(1, pat.swap_remove(pat.iter().position(|h| h.len() == 2).unwrap()));
-            seg.insert(4, pat.swap_remove(pat.iter().position(|h| h.len() == 4).unwrap()));
-            seg.insert(7, pat.swap_remove(pat.iter().position(|h| h.len() == 3).unwrap()));
-            seg.insert(8, pat.swap_remove(pat.iter().position(|h| h.len() == 7).unwrap()));
+            seg.insert(
+                1,
+                pat.swap_remove(pat.iter().position(|h| h.len() == 2).unwrap()),
+            );
+            seg.insert(
+                4,
+                pat.swap_remove(pat.iter().position(|h| h.len() == 4).unwrap()),
+            );
+            seg.insert(
+                7,
+                pat.swap_remove(pat.iter().position(|h| h.len() == 3).unwrap()),
+            );
+            seg.insert(
+                8,
+                pat.swap_remove(pat.iter().position(|h| h.len() == 7).unwrap()),
+            );
 
             let v: Vec<_> = pat
                 .iter()

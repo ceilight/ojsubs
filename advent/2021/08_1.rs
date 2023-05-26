@@ -6,16 +6,13 @@ fn main() {
         .lines()
         .map(|line| {
             let line = line.unwrap();
-            line
-                .split(" | ")
+            line.split(" | ")
                 .nth(1)
                 .unwrap()
                 .split(" ")
-                .filter(|s| {
-                    match s.len() {
-                        2 | 4 | 3 | 7 => true,
-                        _ => false,
-                    }
+                .filter(|s| match s.len() {
+                    2 | 4 | 3 | 7 => true,
+                    _ => false,
                 })
                 .collect::<Vec<_>>()
                 .len()

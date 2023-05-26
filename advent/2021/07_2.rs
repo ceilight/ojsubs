@@ -6,7 +6,12 @@ fn main() {
     let min_crab = *crabs.iter().min().unwrap();
     let max_crab = *crabs.iter().max().unwrap();
     let cost: i32 = (min_crab..=max_crab)
-        .map(|pos| crabs.iter().map(|crab| (1i32..=((crab-pos).abs())).sum::<i32>()).sum())
+        .map(|pos| {
+            crabs
+                .iter()
+                .map(|crab| (1i32..=((crab - pos).abs())).sum::<i32>())
+                .sum()
+        })
         .min()
         .unwrap();
     println!("{:?}", cost);
