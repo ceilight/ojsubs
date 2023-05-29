@@ -19,15 +19,16 @@ fn main() {
                 };
             }
 
-            let mut score = 0; 
+            let mut score = 0;
             for c in st.into_iter().rev() {
-                score = score * 5 + match c {
-                    '(' => 1,
-                    '[' => 2,
-                    '{' => 3,
-                    '<' => 4,
-                    _ => 0,
-                }
+                score = score * 5
+                    + match c {
+                        '(' => 1,
+                        '[' => 2,
+                        '{' => 3,
+                        '<' => 4,
+                        _ => 0,
+                    }
             }
             Some(score)
         })

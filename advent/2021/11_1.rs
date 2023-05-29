@@ -27,16 +27,16 @@ fn main() {
 
         while !pending.is_empty() {
             let (i, j) = pending.pop().unwrap();
-            let (u, d, l, r) = (i > 0, i < r-1, j > 0, j < c-1);
+            let (u, d, l, r) = (i > 0, i < r - 1, j > 0, j < c - 1);
             for adj in [
-                u.then(|| (i-1, j)),
-                d.then(|| (i+1, j)),
-                l.then(|| (i, j-1)),
-                r.then(|| (i, j+1)),
-                (u && l).then(|| (i-1, j-1)),
-                (u && r).then(|| (i-1, j+1)),
-                (d && l).then(|| (i+1, j-1)),
-                (d && r).then(|| (i+1, j+1)),
+                u.then(|| (i - 1, j)),
+                d.then(|| (i + 1, j)),
+                l.then(|| (i, j - 1)),
+                r.then(|| (i, j + 1)),
+                (u && l).then(|| (i - 1, j - 1)),
+                (u && r).then(|| (i - 1, j + 1)),
+                (d && l).then(|| (i + 1, j - 1)),
+                (d && r).then(|| (i + 1, j + 1)),
             ]
             .into_iter()
             .flatten()
