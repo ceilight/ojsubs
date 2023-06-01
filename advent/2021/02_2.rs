@@ -35,7 +35,6 @@ struct Point {
 
 impl Point {
     fn apply(&mut self, m: &Move) {
-        // println!("{:?} {}", m.0, m.1);
         match m.0 {
             MoveType::Forward => {
                 self.x += m.1;

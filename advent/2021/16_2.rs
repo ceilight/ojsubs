@@ -45,11 +45,7 @@ fn parse_operator_packet(
     mut bits: &[bool],
     op: fn(usize, usize) -> usize,
 ) -> Option<(&[bool], usize)> {
-    let (lentype, mut bits) = match bits.split_first() {
-        Some((f, b)) => (f, b),
-        None => return Some((bits, 0)),
-    };
-
+    let (lentype, mut bits) = bits.split_first().unwrap();
     if *lentype {
         let mut tot = 0;
         let (bits, subcnt) = parse_bits(bits, 11)?;

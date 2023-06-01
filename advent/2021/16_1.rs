@@ -14,7 +14,7 @@ fn main() {
         .flatten()
         .collect();
 
-    println!("{:?}", parse_all(&bits));
+    println!("{:?}", parse_packet(&bits).unwrap().1);
 }
 
 fn parse_bits(bits: &[bool], nbit: usize) -> Option<(&[bool], usize)> {
@@ -39,11 +39,7 @@ fn parse_literal_packet(mut bits: &[bool]) -> &[bool] {
 }
 
 fn parse_operator_packet(mut bits: &[bool]) -> Option<(&[bool], usize)> {
-    let (lentype, mut bits) = match bits.split_first() {
-        Some((f, b)) => (f, b),
-        None => return Some((bits, 0)),
-    };
-
+    let (lentype, mut bits) = bits.split_first().unwrap();
     if *lentype {
         let mut tot = 0;
         let (mut bits, subcnt) = parse_bits(bits, 11)?;
@@ -54,9 +50,14 @@ fn parse_operator_packet(mut bits: &[bool]) -> Option<(&[bool], usize)> {
         }
         Some((bits, tot))
     } else {
+        let mut tot = 0;
         let (bits, len) = parse_bits(bits, 15)?;
-        let v = parse_all(&bits[..len]);
-        Some((&bits[len..], v))
+        let (mut sub, bits) = bits.split_at(len as usize);
+        while let Some((s, v)) = parse_packet(sub) {
+            sub = s;
+            tot += v;
+        }
+        Some((bits, tot))
     }
 }
 
@@ -69,16 +70,4 @@ fn parse_packet(bits: &[bool]) -> Option<(&[bool], usize)> {
         parse_operator_packet(bits)?
     };
     Some((bits, subsum + ver))
-}
-
-fn parse_all(mut bits: &[bool]) -> usize {
-    let mut tot = 0;
-    loop {
-        if let Some((b, v)) = parse_packet(bits) {
-            tot += v;
-            bits = b;
-        } else {
-            return tot;
-        }
-    }
 }
