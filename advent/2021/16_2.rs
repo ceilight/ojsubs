@@ -1,22 +1,5 @@
 use std::io::{self, BufRead};
 
-fn main() {
-    let line = io::stdin().lock().lines().next().unwrap().unwrap();
-    let bits: Vec<bool> = line
-        .chars()
-        .map(|x| {
-            let n = x.to_digit(16).unwrap();
-            format!("{:04b}", n)
-                .chars()
-                .map(|x| x == '1')
-                .collect::<Vec<_>>()
-        })
-        .flatten()
-        .collect();
-
-    println!("{:?}", parse_packet(&bits).unwrap().1);
-}
-
 fn parse_bits(bits: &[bool], nbit: usize) -> Option<(&[bool], usize)> {
     if bits.len() < nbit {
         return None;
@@ -82,4 +65,21 @@ fn parse_packet(bits: &[bool]) -> Option<(&[bool], usize)> {
         7 => parse_operator_packet(bits, |x, y| (x == y) as usize),
         _ => panic!("skill issue!"),
     }
+}
+
+fn main() {
+    let line = io::stdin().lock().lines().next().unwrap().unwrap();
+    let bits: Vec<bool> = line
+        .chars()
+        .map(|x| {
+            let n = x.to_digit(16).unwrap();
+            format!("{:04b}", n)
+                .chars()
+                .map(|x| x == '1')
+                .collect::<Vec<_>>()
+        })
+        .flatten()
+        .collect();
+
+    println!("{:?}", parse_packet(&bits).unwrap().1);
 }

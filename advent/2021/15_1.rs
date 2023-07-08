@@ -2,6 +2,24 @@ use std::cmp::Ordering;
 use std::collections::{BinaryHeap, HashMap};
 use std::io::{self, BufRead};
 
+#[derive(Eq, PartialEq)]
+struct State {
+    pos: (usize, usize),
+    cost: u32,
+}
+
+impl Ord for State {
+    fn cmp(&self, rhs: &Self) -> Ordering {
+        rhs.cost.cmp(&self.cost).then(self.pos.cmp(&rhs.pos))
+    }
+}
+
+impl PartialOrd for State {
+    fn partial_cmp(&self, rhs: &Self) -> Option<Ordering> {
+        Some(self.cmp(&rhs))
+    }
+}
+
 fn main() {
     let b = io::stdin()
         .lock()
@@ -55,23 +73,5 @@ fn main() {
             });
             cost.insert(adj, next_cost);
         }
-    }
-}
-
-#[derive(Eq, PartialEq)]
-struct State {
-    pos: (usize, usize),
-    cost: u32,
-}
-
-impl Ord for State {
-    fn cmp(&self, rhs: &Self) -> Ordering {
-        rhs.cost.cmp(&self.cost).then(self.pos.cmp(&rhs.pos))
-    }
-}
-
-impl PartialOrd for State {
-    fn partial_cmp(&self, rhs: &Self) -> Option<Ordering> {
-        Some(self.cmp(&rhs))
     }
 }

@@ -18,7 +18,7 @@ impl Move {
                 "up" => MoveType::Up,
                 "down" => MoveType::Down,
                 _ => {
-                    panic!("what did you mean by this bruh");
+                    panic!("?");
                 }
             },
             tokens[1].parse::<i32>().unwrap(),

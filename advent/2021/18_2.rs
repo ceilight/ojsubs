@@ -97,9 +97,9 @@ fn main() {
                     res
                 })
                 .max()
+                .unwrap()
         })
         .max()
-        .unwrap()
         .unwrap();
 
     println!("{:?}", mag_max);

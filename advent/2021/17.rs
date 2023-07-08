@@ -1,30 +1,6 @@
 use std::cmp;
 use std::io::{self, BufRead};
 
-fn main() {
-    let ((xmin, xmax), (ymin, ymax)) = parse_input();
-
-    // part 1:
-    // find y velocity (vy) so that the y position when vy=0 is maximum
-    let vy0 = -ymin - 1;
-    println!("Part 1: {:?}", vy0 * (vy0 + 1) / 2);
-
-    // part 2: number of velocity values so that the trajectory meets the trench
-    let xabs_max = cmp::max(xmin.abs(), xmax.abs());
-
-    let velocity_count: usize = (ymin..-ymin)
-        .into_iter()
-        .map(|vy| {
-            (-xabs_max..=xabs_max)
-                .into_iter()
-                .filter(|vx| trajectory_in_target(*vx, vy, xmin, xmax, ymin, ymax))
-                .count()
-        })
-        .sum();
-
-    println!("Part 2: {:?}", velocity_count);
-}
-
 fn parse_input() -> ((i32, i32), (i32, i32)) {
     let line = io::stdin().lock().lines().next().unwrap().unwrap();
     let line = line.strip_prefix("target area: ").unwrap();
@@ -80,4 +56,24 @@ fn trajectory_in_target(vx: i32, vy: i32, xmin: i32, xmax: i32, ymin: i32, ymax:
             return false;
         }
     }
+}
+
+fn main() {
+    let ((xmin, xmax), (ymin, ymax)) = parse_input();
+
+    let vy0 = -ymin - 1;
+    println!("Part 1: {:?}", vy0 * (vy0 + 1) / 2);
+
+    let xabs_max = cmp::max(xmin.abs(), xmax.abs());
+    let velocity_count: usize = (ymin..-ymin)
+        .into_iter()
+        .map(|vy| {
+            (-xabs_max..=xabs_max)
+                .into_iter()
+                .filter(|vx| trajectory_in_target(*vx, vy, xmin, xmax, ymin, ymax))
+                .count()
+        })
+        .sum();
+
+    println!("Part 2: {:?}", velocity_count);
 }

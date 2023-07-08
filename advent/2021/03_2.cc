@@ -3,7 +3,7 @@
 #include <set>
 #include <functional>
 
-int shit(std::set<std::string> &pool, std::function<bool(int, int)> cmp) {
+int calc(std::set<std::string> &pool, std::function<bool(int, int)> cmp) {
     for (int i = 0; i < 12 && pool.size() > 1; i++) {
         int count_one = std::count_if(pool.begin(), pool.end(), [&](std::string s) {
             return s[i] == '1';
@@ -29,7 +29,7 @@ int main(void) {
         pool.insert(line);
     }
     std::set<std::string> pool_copy(pool.begin(), pool.end());
-    int sanso = shit(pool, [](int a, int b) { return a >= b; });
-    int nisankatanso = shit(pool_copy, [](int a, int b) { return a < b; });
-    std::cout << sanso * nisankatanso << std::endl;
+    int o2 = calc(pool, [](int a, int b) { return a >= b; });
+    int co2 = calc(pool_copy, [](int a, int b) { return a < b; });
+    std::cout << o2 * co2 << std::endl;
 }
