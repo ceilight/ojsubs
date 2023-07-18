@@ -92,20 +92,20 @@ fn overlapped_pair_count(a: &PM, b: &PM) -> usize {
         .sum()
 }
 
-// Maps a point index in an unfixed report to the list of potential matching
-// point indices in a fixed report
+// Maps a point index in the target report to the list of potential matching
+// point indices in a base report
 type MC = HashMap<usize, HashSet<usize>>;
 
-// Returns lists of point indices in a fixed report that are potentially matched
-// with a point in the base report
-fn match_candidates(unfixed_pm: &PM, base_pm: &PM) -> MC {
+// Returns lists of point indices in the base report that are potentially matched
+// with points in the target report
+fn match_candidates(target_pm: &PM, base_pm: &PM) -> MC {
     let mut cands = HashMap::new();
 
     // Select all pairs with the same distance in both reports
-    for (dist, unfixed_pairs) in unfixed_pm.iter() {
+    for (dist, target_pairs) in target_pm.iter() {
         if let Some(base_pairs) = base_pm.get(dist) {
             // Flatten list of indice pairs into unique set of indices
-            let unfixed_pts = unfixed_pairs.iter().fold(HashSet::new(), |mut s, pair| {
+            let target_pts = target_pairs.iter().fold(HashSet::new(), |mut s, pair| {
                 s.insert(pair.0);
                 s.insert(pair.1);
                 s
@@ -116,7 +116,7 @@ fn match_candidates(unfixed_pm: &PM, base_pm: &PM) -> MC {
                 s
             });
             // Map each element in unfixed_pts to all elements in fixed_pts
-            for pt in unfixed_pts.iter() {
+            for pt in target_pts.iter() {
                 cands
                     .entry(*pt)
                     .or_insert_with(HashSet::new)
@@ -127,32 +127,32 @@ fn match_candidates(unfixed_pm: &PM, base_pm: &PM) -> MC {
     cands
 }
 
-// Adjusts unfixed report based on the base report that is already fixed
-// The report is considered fixed if it contains at least 12 adjusted coordinates found in
-// the base one.
-fn fix(unfixed_report: &[Pt], base_report: &[Pt], cands: &MC) -> Option<(Vec<Pt>, Pt)> {
-    // Any point `u` in the unfixed report whose index `i` contained in `cands` is guaranteed
-    // to be matched with a point `v` in the base report whose index `j` is in a set mapped
-    // to `i` given a suitable rotation.
+// Adjusts unfixed report based on the base report
+// Returns the fixed report and the scanner's coordinate
+fn fix(target_report: &[Pt], base_report: &[Pt], candidate_map: &MC) -> (Vec<Pt>, Pt) {
+    // Any point `u` in the target report whose index `i` contained in candidate map is
+    // guaranteed to match a point `v` in the base report whose index `j` is in a set mapped
+    // to `i` given a suitable rotation for `u`
     //
     // The approach:
-    // * Get any point `u` in unfixed_report that contains potential matches in base report,
+    // * Get any point `u` in target report that contains potential matches in base report,
     // * For every potential match `v` in the base report, and every rotation:
-    //   - Adjust `u` based on the rotation
-    //   - Calculate the offset (vector difference of `u` and `v`)
-    //   - Set up a proposed report with points in the unfixed report added with the offset
-    //   - If the proposed report has at least 12 points also contained in the base report,
-    //     it is fixed report and the offset is the scanner's coordinate
-    let mut cands = cands.iter();
-    let (i, js) = cands.next().unwrap();
+    //  - Adjust `u` based on the rotation
+    //  - Calculate the offset (vector difference of `u` and `v`)
+    //  - Create a proposed report with points in the unfixed report added with the offset
+    //  - If the proposed and base reports have at least 12 common points, the target report
+    //    is fixed and the offset is the scanner's coordinate
+
+    let mut candidate_map = candidate_map.iter();
+    let (i, js) = candidate_map.next().unwrap();
     for j in js.iter() {
         let (i, j) = (*i, *j);
         let v = base_report[j];
         for rotate in ROTATIONS {
-            let u = rotate(unfixed_report[i]);
+            let u = rotate(target_report[i]);
             let offset = (v.0 - u.0, v.1 - u.1, v.2 - u.2);
 
-            let proposed_report: Vec<Pt> = unfixed_report
+            let proposed_report: Vec<Pt> = target_report
                 .iter()
                 .map(|p| {
                     let p = rotate(*p);
@@ -165,12 +165,11 @@ fn fix(unfixed_report: &[Pt], base_report: &[Pt], cands: &MC) -> Option<(Vec<Pt>
                 .filter(|x| base_report.contains(x))
                 .count();
             if match_count >= 12 {
-                return Some((proposed_report, offset));
+                return (proposed_report, offset);
             }
         }
     }
-    // This part is pretty much unreachable given the input
-    None
+    unreachable!("Not my problem");
 }
 
 fn main() {
@@ -186,20 +185,18 @@ fn main() {
         reports.push(report);
     }
 
-    // Initial approach is calling the report fixing routine for every unfixed reports
-    // and for every fixed base reports until there's a pair of base and unfixed reports
-    // so that the routine can return the fixed report (the routine is already very slow).
-    //
-    // Optimization idea: only call the routine on pairs of reports that seems to have
-    // 12 points in common.
-    // What came to mind is that two reports with at least 12 points in common implies that
-    // they can create at least 12 choose 2 = 66 overlapping pairs of points. It's not always
-    // true the other way around, but the routine is there to check its correctness.
-    //
-    // Now that the suitable pairs of reports are at hand, the next problem is to traverse
-    // these pairs in a more optimized manner than simple brute force. Checking the list of
-    // pairs in one input, I realized that 0 can be paired with 6, 7 and 16 and came up with
-    // using DFS over a graph with reports as nodes and pairs as edges.
+    // Initial approach:
+    // * Iterate through each pair of base report (in the set of fixed reports) and
+    //   unfixed report
+    // * Apply fix process on the pair until the unfixed report is fixed
+    // * Repeat until all reports are fixed
+    // Optimization ideas:
+    // * Only apply fix process on pairs of reports that seems to have 12 common points
+    // * 2 reports with at least 12 common points can yield at least 12 choose 2 = 66
+    //   overlapping pairs in terms of Euclidean distance
+    // * Each suitable pair of reports can be considered an edge in a graph of reports
+    // * Perform a graph traversal with scanner 0 as the start state and repeat until
+    //   all reports are fixed
 
     // Adjacency lists
     let mut adj: HashMap<usize, Vec<usize>> = HashMap::new();
@@ -220,28 +217,24 @@ fn main() {
     let mut fixed = HashMap::new();
     fixed.insert(0, reports[0].clone());
 
-    // The outer while loop is not neccessary, but it's left there just in case
-    while fixed.len() < reports.len() {
-        let mut stack = vec![0];
-        while !stack.is_empty() {
-            let i = stack.pop().unwrap();
-            if let Some(neighbors) = adj.get(&i) {
-                for j in neighbors.iter() {
-                    let j = *j;
-                    if fixed.contains_key(&j) {
-                        continue;
-                    }
-
-                    let base = fixed.get(&i).unwrap();
-                    let unfixed = &reports[j];
-                    let cands = match_candidates(&pair_maps[j], &pair_maps[i]);
-
-                    if let Some((fixed_report, scanner)) = fix(&unfixed, &base, &cands) {
-                        fixed.insert(j, fixed_report);
-                        scanners.push(scanner);
-                        stack.push(j);
-                    }
+    // Graph traversal using DFS
+    let mut stack = vec![0];
+    while !stack.is_empty() {
+        let i = stack.pop().unwrap();
+        if let Some(neighbors) = adj.get(&i) {
+            for j in neighbors.iter() {
+                let j = *j;
+                if fixed.contains_key(&j) {
+                    continue;
                 }
+                let base = fixed.get(&i).unwrap();
+                let target = &reports[j];
+                let cands = match_candidates(&pair_maps[j], &pair_maps[i]);
+
+                let (fixed_report, scanner) = fix(&target, &base, &cands);
+                fixed.insert(j, fixed_report);
+                scanners.push(scanner);
+                stack.push(j);
             }
         }
     }
