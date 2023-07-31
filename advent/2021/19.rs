@@ -42,7 +42,7 @@ where
     if lines.next().is_none() {
         return None;
     }
-    let mut report = vec![];
+    let mut report = Vec::new();
     for l in lines {
         if l.is_empty() {
             break;
@@ -99,7 +99,7 @@ type MC = HashMap<usize, HashSet<usize>>;
 // Returns lists of point indices in the base report that are potentially matched
 // with points in the target report
 fn match_candidates(target_pm: &PM, base_pm: &PM) -> MC {
-    let mut cands = HashMap::new();
+    let mut candidate_map = HashMap::new();
 
     // Select all pairs with the same distance in both reports
     for (dist, target_pairs) in target_pm.iter() {
@@ -117,24 +117,24 @@ fn match_candidates(target_pm: &PM, base_pm: &PM) -> MC {
             });
             // Map each element in unfixed_pts to all elements in fixed_pts
             for pt in target_pts.iter() {
-                cands
+                candidate_map
                     .entry(*pt)
                     .or_insert_with(HashSet::new)
                     .extend(&base_pts);
             }
         }
     }
-    cands
+    candidate_map
 }
 
 // Adjusts unfixed report based on the base report
 // Returns the fixed report and the scanner's coordinate
-fn fix(target_report: &[Pt], base_report: &[Pt], candidate_map: &MC) -> (Vec<Pt>, Pt) {
+fn fix(target_report: &[Pt], base_report: &[Pt], candidate_map: &MC) -> Option<(Vec<Pt>, Pt)> {
     // Any point `u` in the target report whose index `i` contained in candidate map is
     // guaranteed to match a point `v` in the base report whose index `j` is in a set mapped
     // to `i` given a suitable rotation for `u`
     //
-    // The approach:
+    // Approach:
     // * Get any point `u` in target report that contains potential matches in base report,
     // * For every potential match `v` in the base report, and every rotation:
     //  - Adjust `u` based on the rotation
@@ -165,11 +165,11 @@ fn fix(target_report: &[Pt], base_report: &[Pt], candidate_map: &MC) -> (Vec<Pt>
                 .filter(|x| base_report.contains(x))
                 .count();
             if match_count >= 12 {
-                return (proposed_report, offset);
+                return Some((proposed_report, offset));
             }
         }
     }
-    unreachable!("Not my problem");
+    None
 }
 
 fn main() {
@@ -231,10 +231,11 @@ fn main() {
                 let target = &reports[j];
                 let cands = match_candidates(&pair_maps[j], &pair_maps[i]);
 
-                let (fixed_report, scanner) = fix(&target, &base, &cands);
-                fixed.insert(j, fixed_report);
-                scanners.push(scanner);
-                stack.push(j);
+                if let Some((fixed_report, scanner)) = fix(&target, &base, &cands) {
+                    fixed.insert(j, fixed_report);
+                    scanners.push(scanner);
+                    stack.push(j);
+                }
             }
         }
     }

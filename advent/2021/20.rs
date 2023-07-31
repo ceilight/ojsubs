@@ -118,6 +118,7 @@ impl Img {
     }
 
     fn count_lits(&self) -> usize {
+        assert!(self.void_state == Pixel::Dark);
         self.pixels
             .iter()
             .filter(|(_, &c)| c == Pixel::Light)
