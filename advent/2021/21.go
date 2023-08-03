@@ -25,7 +25,7 @@ func part1(pos []int) int {
     dice := 1
     rolls := 0
     score := [2]int{}
-Game:
+game:
     for {
         for p := 0; p < 2; p++ {
             for i := 0; i < 3; i++ {
@@ -39,7 +39,7 @@ Game:
             score[p] += pos[p] + 1
             rolls += 3
             if score[p] >= 1000 {
-                break Game
+                break game
             }
         }
     }
@@ -54,10 +54,25 @@ Game:
 // Distribution of the sum of dice values after 3 rolls (only indices 3-9 are used)
 var rollSumDistribution = [10]int64{0, 0, 0, 1, 3, 6, 7, 6, 3, 1}
 
+// First two attributes of key is the state of current player
+func getKey(pos, score [2]int, isPlayer1Turn bool) string {
+    if isPlayer1Turn {
+        return fmt.Sprint(pos[0], score[0], pos[1], score[1])
+    } else {
+        return fmt.Sprint(pos[1], score[1], pos[0], score[0])
+    }
+}
+
+// Note: play() returns the numbers of outcomes where player 1 and player 2 wins respectively
+// while memo stores values with the number of outcomes where current player wins first
 func play(pos, score [2]int, isPlayer1Turn bool, memo map[string][2]int64) (int64, int64) {
-    key := fmt.Sprint(pos, score, isPlayer1Turn)
+    key := getKey(pos, score, isPlayer1Turn)
     if res, found := memo[key]; found {
-        return res[0], res[1]
+        if isPlayer1Turn {
+            return res[0], res[1]
+        } else {
+            return res[1], res[0]
+        }
     }
 
     wins := [2]int64{}
@@ -81,7 +96,12 @@ func play(pos, score [2]int, isPlayer1Turn bool, memo map[string][2]int64) (int6
             wins[1] += nextPlayer2Wins * distribution
         }
     }
-    memo[key] = wins
+
+    if isPlayer1Turn {
+        memo[key] = wins
+    } else {
+        memo[key] = [2]int64{wins[1], wins[0]}
+    }
     return wins[0], wins[1]
 }
 
