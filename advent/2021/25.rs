@@ -18,14 +18,14 @@ impl From<char> for Loc {
     }
 }
 
-struct Map {
+struct World {
     board: Vec<Vec<Loc>>,
     rows: usize,
     cols: usize,
-    action_count: u32,
+    advance_count: u32,
 }
 
-impl Map {
+impl World {
     fn parse<I>(lines: I) -> Self
     where
         I: Iterator<Item = String>,
@@ -37,13 +37,13 @@ impl Map {
             board,
             rows,
             cols,
-            action_count: 0,
+            advance_count: 0,
         }
     }
 
-    fn next(&mut self) -> Option<u32> {
-        self.action_count += 1;
-        let mut changed_locs = 0;
+    fn advance(&mut self) -> bool {
+        self.advance_count += 1;
+        let mut changed = false;
 
         let mut to_void = Vec::new();
         let mut to_move = Vec::new();
@@ -58,13 +58,15 @@ impl Map {
                 }
             }
         }
+        if !to_move.is_empty() {
+            changed = true;
+        }
         for (x, y) in to_void.iter() {
             self.board[*x][*y] = Loc::Void;
         }
         for (x, y) in to_move.iter() {
             self.board[*x][*y] = Loc::East;
         }
-        changed_locs += to_void.len() + to_move.len();
 
         let mut to_void = Vec::new();
         let mut to_move = Vec::new();
@@ -79,15 +81,16 @@ impl Map {
                 }
             }
         }
+        if !to_move.is_empty() {
+            changed = true;
+        }
         for (x, y) in to_void.iter() {
             self.board[*x][*y] = Loc::Void;
         }
         for (x, y) in to_move.iter() {
             self.board[*x][*y] = Loc::South;
         }
-        changed_locs += to_void.len() + to_move.len();
-
-        (changed_locs == 0).then(|| self.action_count)
+        changed
     }
 
     #[allow(dead_code)]
@@ -110,10 +113,10 @@ impl Map {
 
 fn main() {
     let lines = io::stdin().lock().lines().map(Result::unwrap);
-    let mut map = Map::parse(lines);
+    let mut world = World::parse(lines);
     let count = loop {
-        if let Some(limit) = map.next() {
-            break limit;
+        if !world.advance() {
+            break world.advance_count;
         }
     };
     println!("{}", count);
