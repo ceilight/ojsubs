@@ -13,8 +13,7 @@ var cellPosX = [23]int{0, 1, 3, 5, 7, 9, 10, 2, 2, 2, 2, 4, 4, 4, 4, 6, 6, 6, 6,
 var cellPosY = [23]int{0, 0, 0, 0, 0, 0, 0, 1, 2, 3, 4, 1, 2, 3, 4, 1, 2, 3, 4, 1, 2, 3, 4}
 
 type State struct {
-	// Keeps track of the state of the 23 cells
-	// For each char indexed by a corresponding cell order, A, B, C, D indicate the amphipods
+	// Each element represents the state of a cell. A, B, C, D indicate the amphipods
 	// while the period mark indicates empty cell.
 	cells []byte
 	// Total cost to reach this state from initial state
@@ -54,7 +53,7 @@ func (s *State) getMove(index, destX, destY int) Move {
 	return Move{index, destIndex, cost}
 }
 
-// Creates the resulting state after applying move on original state and returns it
+// Creates the resulting state after applying one move on original state and returns it
 func (s *State) applyMove(m Move) State {
 	cellsTemp := make([]byte, len(s.cells))
 	copy(cellsTemp, s.cells)
@@ -63,15 +62,15 @@ func (s *State) applyMove(m Move) State {
 	return State{cellsTemp, s.cost + m.cost}
 }
 
-// Check if amphipod can move along the hallway starting from column x to destX
+// Checks if amphipod can move along the hallway starting from column x to destX
 func (s *State) isHallwayOpen(x, destX, index int) bool {
 	xLeft, xRight := x, destX
 	if destX < x {
 		xLeft, xRight = destX, x
 	}
-	for i, cellKind := range s.cells {
+	for i, cell := range s.cells {
 		x, y := cellPosX[i], cellPosY[i]
-		if i != index && y == 0 && x >= xLeft && x <= xRight && cellKind != '.' {
+		if i != index && y == 0 && x >= xLeft && x <= xRight && cell != '.' {
 			return false
 		}
 	}
@@ -92,8 +91,8 @@ var digits = map[byte]int64{
 // within int64 range
 func (s *State) getCellsKey() int64 {
 	var key int64
-	for _, cellKind := range s.cells {
-		key = 5*key + digits[cellKind]
+	for _, cell := range s.cells {
+		key = 5*key + digits[cell]
 	}
 	return key
 }
@@ -108,7 +107,7 @@ func getCellIndex(x, y int) int {
 }
 
 // Returns a cell kind from coordinate, if a cell is invalid or out of range, `false` is returned
-func (s *State) getCellKind(x, y int) (byte, bool) {
+func (s *State) getCell(x, y int) (byte, bool) {
 	index := getCellIndex(x, y)
 	if index == -1 {
 		return 0, false
@@ -118,8 +117,8 @@ func (s *State) getCellKind(x, y int) (byte, bool) {
 
 func (s *State) amphipodCount() int {
 	count := 0
-	for _, cellKind := range s.cells {
-		if cellKind != '.' {
+	for _, cell := range s.cells {
+		if cell != '.' {
 			count++
 		}
 	}
@@ -141,14 +140,14 @@ func (s *State) availableMoves() []Move {
 		maxY = 2
 	}
 
-	for i, cellKind := range s.cells {
+	for i, cell := range s.cells {
 		// ignore empty cells
-		if cellKind == '.' {
+		if cell == '.' {
 			continue
 		}
 
 		curX, curY := cellPosX[i], cellPosY[i]
-		destX := destRoom[cellKind]
+		destX := destRoom[cell]
 
 		// already in its right place
 		if curX == destX && curY == maxY {
@@ -159,12 +158,12 @@ func (s *State) availableMoves() []Move {
 		if curY == 0 {
 			destY := -1
 			for y := maxY; y >= 1; y-- {
-				kind, _ := s.getCellKind(destX, y)
+				kind, _ := s.getCell(destX, y)
 				if kind == '.' {
 					destY = y
 					break
 				}
-				if kind != cellKind {
+				if kind != cell {
 					break
 				}
 			}
@@ -179,10 +178,10 @@ func (s *State) availableMoves() []Move {
 		}
 
 		// amphipod is in either of the 4 side rooms
-		// check if there's any amphipods above them
+		// check if there's any amphipod above them
 		isStuck := false
 		for y := 1; y < curY; y++ {
-			kind, _ := s.getCellKind(curX, y)
+			kind, _ := s.getCell(curX, y)
 			if kind != '.' {
 				isStuck = true
 				break
@@ -193,12 +192,12 @@ func (s *State) availableMoves() []Move {
 		}
 
 		// suppose current amphipods is in its destination room
-		// check if there's any amphipods under it that are not in their correct room
+		// check if there's any amphipod under it that is not in their correct room
 		if curX == destX {
 			isSet := true
 			for y := curY + 1; y <= maxY; y++ {
-				kind, _ := s.getCellKind(curX, y)
-				if kind != cellKind {
+				kind, _ := s.getCell(curX, y)
+				if kind != cell {
 					isSet = false
 					break
 				}
@@ -218,6 +217,19 @@ func (s *State) availableMoves() []Move {
 	return moves
 }
 
+// Two states are considered equal when the cell states of both are the same
+func (s *State) isEqualTo(other State) bool {
+	if len(s.cells) != len(other.cells) {
+		return false
+	}
+	for i := 0; i < len(s.cells); i++ {
+		if s.cells[i] != other.cells[i] {
+			return false
+		}
+	}
+	return true
+}
+
 // Priority queue implementation
 type PQueue []State
 
@@ -234,34 +246,25 @@ func (h *PQueue) Pop() any {
 	return x
 }
 
-func equalCellsState(u, v []byte) bool {
-	if len(u) != len(v) {
-		return false
-	}
-	for i := 0; i < len(u); i++ {
-		if u[i] != v[i] {
-			return false
-		}
-	}
-	return true
-}
-
-func dijkstra(start, stop []byte) (int, []State) {
+func dijkstra(init, end []byte) (int, []State) {
 	costs := make(map[int64]int)
 	prev := make(map[int64]State)
 
-	pq := PQueue{State{start, 0}}
+	initState := State{init, 0}
+	endState := State{end, 0} // a dummy one to compare with other states
+
+	pq := PQueue{initState}
 	heap.Init(&pq)
 
 	for len(pq) > 0 {
 		cur := heap.Pop(&pq).(State)
 		cost := cur.cost
 
-		if equalCellsState(cur.cells, stop) {
+		if cur.isEqualTo(endState) {
 			path := []State{}
 			for {
 				path = append(path, cur)
-				if equalCellsState(cur.cells, start) {
+				if cur.isEqualTo(initState) {
 					break
 				}
 				curKey := cur.getCellsKey()
