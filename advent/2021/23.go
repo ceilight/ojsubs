@@ -192,7 +192,7 @@ func (s *State) availableMoves() []Move {
 		}
 
 		// suppose current amphipods is in its destination room
-		// check if there's any amphipod under it that is not in their correct room
+		// check if there's any amphipod under it that is not in its correct room
 		if curX == destX {
 			isSet := true
 			for y := curY + 1; y <= maxY; y++ {
