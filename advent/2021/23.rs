@@ -20,7 +20,7 @@ fn cell_index_at_coord(coord: (u8, u8)) -> Option<usize> {
     (0..23).find(|&i| CELLS_ROW[i] == coord.0 && CELLS_COL[i] == coord.1)
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Cell {
     E = 0,
     A = 1,
@@ -63,7 +63,7 @@ struct State {
     cost: u32,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 struct Move {
     orig_idx: usize,
     dest_idx: usize,
@@ -73,9 +73,8 @@ struct Move {
 impl State {
     // Returns the hash value of elements in the cells attribute as u64
     // A cell can be one of 5 values (A, B, C, D, empty), the cells attribute
-    // can be represented in a base 5 system, of which the largest value
-    // (5 pow 23 - 1 ~ 1.192e16) is within u64 range
-    fn cells_key(&self) -> u64 {
+    // can be represented in a base 5 system
+    fn cells_hash(&self) -> u64 {
         let mut res = 0;
         for &c in self.cells.iter() {
             res = 5 * res + c as u64;
@@ -105,7 +104,10 @@ impl State {
         let mut cells = self.cells.clone();
         cells[m.dest_idx] = cells[m.orig_idx];
         cells[m.orig_idx] = Cell::E;
-        State { cells, cost: self.cost + m.cost }
+        State {
+            cells,
+            cost: self.cost + m.cost,
+        }
     }
 
     fn is_hallway_segment_empty(&self, idx: usize, col_a: u8, col_b: u8) -> bool {
@@ -168,7 +170,7 @@ impl State {
                 // Room to hallway transition
                 // Amphipod can move to the hallway when there are no amphipods overhead
                 for x in 1..row {
-                    match self.cell_at_coord((x, col)) {
+                    match &self.cell_at_coord((x, col)) {
                         Some(Cell::E) => (),
                         Some(_) => continue 'next_cell,
                         None => panic!("how is {:?} not a cell", (x, col)),
@@ -196,8 +198,6 @@ impl State {
                     }
                 }
 
-                // Also, make sure the hallway segment between the amphipod and the
-                // target room is empty before moving
                 const HALLWAY_COLS: [u8; 7] = [1, 2, 4, 6, 8, 10, 11];
                 for &y in HALLWAY_COLS.iter() {
                     if self.is_hallway_segment_empty(i, col, y) {
@@ -237,9 +237,9 @@ impl PartialOrd for State {
     }
 }
 
-fn dijskstra(init: &State, end: &State) -> Option<(Vec<State>, u32)> {
+fn dijkstra(init: &State, end: &State) -> Option<(Vec<Move>, u32)> {
     let mut costs: HashMap<u64, u32> = HashMap::new();
-    let mut prevs: HashMap<u64, State> = HashMap::new();
+    let mut links: HashMap<u64, (u64, Move)> = HashMap::new();
     let mut queue = BinaryHeap::new();
     queue.push(init.clone());
 
@@ -247,17 +247,15 @@ fn dijskstra(init: &State, end: &State) -> Option<(Vec<State>, u32)> {
         let state = queue.pop().unwrap();
         let cost = state.cost;
 
-        // end state reached, trace path and return total cost
+        // end state reached, trace move path and return total cost
         if state.equal_cells_with(end) {
             let mut path = vec![];
-            let mut cur = state;
-            loop {
-                let prev = prevs.get(&cur.cells_key());
-                path.push(cur);
-                match prev {
-                    Some(p) => cur = p.clone(),
-                    None => break,
-                };
+            let init_hash = init.cells_hash();
+            let mut hash = state.cells_hash();
+            while hash != init_hash {
+                let (h, m) = links.get(&hash).unwrap();
+                path.push(m.clone());
+                hash = *h;
             }
             path.reverse();
             return Some((path, cost));
@@ -266,12 +264,12 @@ fn dijskstra(init: &State, end: &State) -> Option<(Vec<State>, u32)> {
         let moves = state.available_moves();
         for m in moves.into_iter() {
             let next = state.apply_move(&m);
-            let k = next.cells_key();
-            match costs.get(&k) {
+            let h = next.cells_hash();
+            match costs.get(&h) {
                 Some(&c) if next.cost >= c => continue,
                 _ => {
-                    costs.insert(k, next.cost);
-                    prevs.insert(k, state.clone());
+                    costs.insert(h, next.cost);
+                    links.insert(h, (state.cells_hash(), m.clone()));
                 }
             };
             queue.push(next);
@@ -285,6 +283,7 @@ fn main() {
     lines.next();
 
     let mut grid: Vec<Vec<_>> = lines.map(|l| l.chars().collect()).collect();
+
     let cells: Vec<_> = (0..23)
         .map(|i| {
             let (x, y) = cell_coord(i);
@@ -307,6 +306,7 @@ fn main() {
         }
     };
 
+    // add 2 more lines for part 2
     grid.insert(2, "  #D#C#B#A#".chars().collect());
     grid.insert(3, "  #D#B#A#C#".chars().collect());
 
@@ -328,6 +328,14 @@ fn main() {
         }
     };
 
-    println!("Part 1: {}", dijskstra(&init1, &end1).unwrap().1);
-    println!("Part 2: {}", dijskstra(&init2, &end2).unwrap().1);
+    let (p, c) = dijkstra(&init1, &end1).unwrap();
+    for m in p.iter() {
+        // println!("{:?} -> {:?}", cell_coord(m.orig_idx), cell_coord(m.dest_idx));
+    }
+    println!("Part 1: {}", c);
+    let (p, c) = dijkstra(&init2, &end2).unwrap();
+    for m in p.iter() {
+        // println!("{:?} -> {:?}", cell_coord(m.orig_idx), cell_coord(m.dest_idx));
+    }
+    println!("Part 2: {}", c);
 }
