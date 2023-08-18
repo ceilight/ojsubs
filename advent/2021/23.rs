@@ -3,11 +3,11 @@
 use std::cmp::Ordering;
 use std::collections::{BinaryHeap, HashMap};
 use std::io::{self, BufRead};
+use std::time::Instant;
 
 const CELLS_ROW: [u8; 23] = [
     0, 0, 0, 0, 0, 0, 0, 1, 2, 3, 4, 1, 2, 3, 4, 1, 2, 3, 4, 1, 2, 3, 4,
 ];
-
 const CELLS_COL: [u8; 23] = [
     1, 2, 4, 6, 8, 10, 11, 3, 3, 3, 3, 5, 5, 5, 5, 7, 7, 7, 7, 9, 9, 9, 9,
 ];
@@ -71,9 +71,8 @@ struct Move {
 }
 
 impl State {
-    // Returns the hash value of elements in the cells attribute as u64
-    // A cell can be one of 5 values (A, B, C, D, empty), the cells attribute
-    // can be represented in a base 5 system
+    // Since a cell can be one of 5 values (A, B, C, D, empty), the cells attribute
+    // can be hashed in a base 5 system number
     fn cells_hash(&self) -> u64 {
         let mut res = 0;
         for &c in self.cells.iter() {
@@ -112,9 +111,9 @@ impl State {
 
     fn is_hallway_segment_empty(&self, idx: usize, col_a: u8, col_b: u8) -> bool {
         let col_range = col_a.min(col_b)..=col_a.max(col_b);
-        for (i, cell) in self.cells.iter().enumerate() {
+        for (i, &cell) in self.cells.iter().enumerate() {
             let (row, col) = cell_coord(i);
-            if row == 0 && col_range.contains(&col) && i != idx && *cell != Cell::E {
+            if row == 0 && col_range.contains(&col) && i != idx && cell != Cell::E {
                 return false;
             }
         }
@@ -132,8 +131,8 @@ impl State {
         let mut moves = vec![];
         let row_max = self.amphipod_count() as u8 / 4;
 
-        'next_cell: for (i, cell) in self.cells.iter().enumerate() {
-            if *cell == Cell::E {
+        'next_cell: for (i, &cell) in self.cells.iter().enumerate() {
+            if cell == Cell::E {
                 continue;
             }
             let (row, col) = cell_coord(i);
@@ -143,12 +142,11 @@ impl State {
                 let dest_col = cell.target_column();
                 let mut dest_row = 0;
 
-                // Iterate over the target room from the bottom up to find the
-                // target cell.
+                // Iterate over the target room from the bottom up to find the target cell.
                 // Check if there are amphipods of other type inside the room
                 // so they won't get stuck when the amphipod moves in target room
                 for x in (1..=row_max).rev() {
-                    match &self.cell_at_coord((x, dest_col)) {
+                    match self.cell_at_coord((x, dest_col)) {
                         Some(Cell::E) => {
                             dest_row = x;
                             break;
@@ -170,7 +168,7 @@ impl State {
                 // Room to hallway transition
                 // Amphipod can move to the hallway when there are no amphipods overhead
                 for x in 1..row {
-                    match &self.cell_at_coord((x, col)) {
+                    match self.cell_at_coord((x, col)) {
                         Some(Cell::E) => (),
                         Some(_) => continue 'next_cell,
                         None => panic!("how is {:?} not a cell", (x, col)),
@@ -183,7 +181,7 @@ impl State {
                 if col == cell.target_column() {
                     let mut all_comrades = true;
                     for x in row + 1..=row_max {
-                        match &self.cell_at_coord((x, col)) {
+                        match self.cell_at_coord((x, col)) {
                             Some(Cell::E) => panic!("they're not gonna bite you bro"),
                             Some(c) if c != cell => {
                                 all_comrades = false;
@@ -239,37 +237,37 @@ impl PartialOrd for State {
 
 fn dijkstra(init: &State, end: &State) -> Option<(Vec<Move>, u32)> {
     let mut costs: HashMap<u64, u32> = HashMap::new();
-    let mut links: HashMap<u64, (u64, Move)> = HashMap::new();
+    let mut prevs: HashMap<u64, (u64, Move)> = HashMap::new();
     let mut queue = BinaryHeap::new();
     queue.push(init.clone());
 
     while !queue.is_empty() {
         let state = queue.pop().unwrap();
-        let cost = state.cost;
+        let (cost, state_key) = (state.cost, state.cells_hash());
 
         // end state reached, trace move path and return total cost
         if state.equal_cells_with(end) {
             let mut path = vec![];
-            let init_hash = init.cells_hash();
-            let mut hash = state.cells_hash();
-            while hash != init_hash {
-                let (h, m) = links.get(&hash).unwrap();
+            let init_key = init.cells_hash();
+            let mut k = state_key;
+            while k != init_key {
+                let (h, m) = prevs.get(&k).unwrap();
                 path.push(m.clone());
-                hash = *h;
+                k = *h;
             }
             path.reverse();
             return Some((path, cost));
         }
 
         let moves = state.available_moves();
-        for m in moves.into_iter() {
-            let next = state.apply_move(&m);
-            let h = next.cells_hash();
-            match costs.get(&h) {
+        for m in moves.iter() {
+            let next = state.apply_move(m);
+            let next_key = next.cells_hash();
+            match costs.get(&next_key) {
                 Some(&c) if next.cost >= c => continue,
                 _ => {
-                    costs.insert(h, next.cost);
-                    links.insert(h, (state.cells_hash(), m.clone()));
+                    costs.insert(next_key, next.cost);
+                    prevs.insert(next_key, (state_key, m.clone()));
                 }
             };
             queue.push(next);
@@ -279,9 +277,10 @@ fn dijkstra(init: &State, end: &State) -> Option<(Vec<Move>, u32)> {
 }
 
 fn main() {
+    use Cell::*;
+
     let mut lines = io::stdin().lock().lines().map(Result::unwrap);
     lines.next();
-
     let mut grid: Vec<Vec<_>> = lines.map(|l| l.chars().collect()).collect();
 
     let cells: Vec<_> = (0..23)
@@ -290,20 +289,16 @@ fn main() {
             if x == 1 || x == 2 {
                 Cell::from(grid[x as usize][y as usize])
             } else {
-                Cell::E
+                E
             }
         })
         .collect();
     let init1 = State { cells, cost: 0 };
-
-    let end1 = {
-        use Cell::*;
-        State {
-            cells: vec![
-                E, E, E, E, E, E, E, A, A, E, E, B, B, E, E, C, C, E, E, D, D, E, E,
-            ],
-            cost: 0,
-        }
+    let end1 = State {
+        cells: vec![
+            E, E, E, E, E, E, E, A, A, E, E, B, B, E, E, C, C, E, E, D, D, E, E,
+        ],
+        cost: 0,
     };
 
     // add 2 more lines for part 2
@@ -317,25 +312,26 @@ fn main() {
         })
         .collect();
     let init2 = State { cells, cost: 0 };
-
-    let end2 = {
-        use Cell::*;
-        State {
-            cells: vec![
-                E, E, E, E, E, E, E, A, A, A, A, B, B, B, B, C, C, C, C, D, D, D, D,
-            ],
-            cost: 0,
-        }
+    let end2 = State {
+        cells: vec![
+            E, E, E, E, E, E, E, A, A, A, A, B, B, B, B, C, C, C, C, D, D, D, D,
+        ],
+        cost: 0,
     };
 
-    let (p, c) = dijkstra(&init1, &end1).unwrap();
-    for m in p.iter() {
-        // println!("{:?} -> {:?}", cell_coord(m.orig_idx), cell_coord(m.dest_idx));
-    }
-    println!("Part 1: {}", c);
-    let (p, c) = dijkstra(&init2, &end2).unwrap();
-    for m in p.iter() {
-        // println!("{:?} -> {:?}", cell_coord(m.orig_idx), cell_coord(m.dest_idx));
-    }
-    println!("Part 2: {}", c);
+    let start = Instant::now();
+    let (_p, c) = dijkstra(&init1, &end1).unwrap();
+    let p1_time = start.elapsed();
+    // for m in p.iter() {
+    //     println!("{:?} -> {:?} ", cell_coord(m.orig_idx), cell_coord(m.dest_idx));
+    // }
+    println!("Part 1: {} ({}ms elapsed)", c, p1_time.as_millis());
+
+    let start = Instant::now();
+    let (_p, c) = dijkstra(&init2, &end2).unwrap();
+    let p2_time = start.elapsed();
+    // for m in p.iter() {
+    //     println!("{:?} -> {:?} ", cell_coord(m.orig_idx), cell_coord(m.dest_idx));
+    // }
+    println!("Part 2: {} ({}ms elapsed)", c, p2_time.as_millis());
 }
