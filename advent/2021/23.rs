@@ -5,18 +5,18 @@ use std::collections::{BinaryHeap, HashMap};
 use std::io::{self, BufRead};
 use std::time::Instant;
 
-const CELLS_ROW: [u8; 23] = [
+const CELLS_ROW: [i8; 23] = [
     0, 0, 0, 0, 0, 0, 0, 1, 2, 3, 4, 1, 2, 3, 4, 1, 2, 3, 4, 1, 2, 3, 4,
 ];
-const CELLS_COL: [u8; 23] = [
+const CELLS_COL: [i8; 23] = [
     1, 2, 4, 6, 8, 10, 11, 3, 3, 3, 3, 5, 5, 5, 5, 7, 7, 7, 7, 9, 9, 9, 9,
 ];
 
-fn cell_coord(idx: usize) -> (u8, u8) {
+fn cell_coord(idx: usize) -> (i8, i8) {
     (CELLS_ROW[idx], CELLS_COL[idx])
 }
 
-fn cell_index_at_coord(coord: (u8, u8)) -> Option<usize> {
+fn cell_index_at_coord(coord: (i8, i8)) -> Option<usize> {
     (0..23).find(|&i| CELLS_ROW[i] == coord.0 && CELLS_COL[i] == coord.1)
 }
 
@@ -43,8 +43,8 @@ impl From<char> for Cell {
 }
 
 impl Cell {
-    fn target_column(&self) -> u8 {
-        const TARGET_COLS: [u8; 5] = [0, 3, 5, 7, 9];
+    fn target_column(&self) -> i8 {
+        const TARGET_COLS: [i8; 5] = [0, 3, 5, 7, 9];
         match self {
             Cell::E => panic!("guard this case yourself"),
             c => TARGET_COLS[*c as usize],
@@ -74,29 +74,23 @@ impl State {
     // Since a cell can be one of 5 values (A, B, C, D, empty), the cells attribute
     // can be hashed in a base 5 system number
     fn cells_hash(&self) -> u64 {
-        let mut res = 0;
-        for &c in self.cells.iter() {
-            res = 5 * res + c as u64;
-        }
-        res
+        self.cells.iter().fold(0, |hash, &c| hash * 5 + c as u64)
     }
 
     fn amphipod_count(&self) -> usize {
         self.cells.iter().filter(|&&x| x != Cell::E).count()
     }
 
-    fn get_move(&self, u_idx: usize, v: (u8, u8)) -> Option<Move> {
+    fn get_move(&self, u_idx: usize, v: (i8, i8)) -> Option<Move> {
         assert!(u_idx < 23);
         let u = cell_coord(u_idx);
-        let dist = (v.0 as i8 - u.0 as i8).abs() as u8 + (v.1 as i8 - u.1 as i8).abs() as u8;
-        if let Some(dest_idx) = cell_index_at_coord(v) {
-            return Some(Move {
-                orig_idx: u_idx,
-                dest_idx,
-                cost: dist as u32 * self.cells[u_idx].weight(),
-            });
-        }
-        None
+        let dist = (v.0 - u.0).abs() + (v.1 - u.1).abs();
+
+        cell_index_at_coord(v).map(|dest_idx| Move {
+            orig_idx: u_idx,
+            dest_idx,
+            cost: dist as u32 * self.cells[u_idx].weight(),
+        })
     }
 
     fn apply_move(&self, m: &Move) -> State {
@@ -109,27 +103,23 @@ impl State {
         }
     }
 
-    fn is_hallway_segment_empty(&self, idx: usize, col_a: u8, col_b: u8) -> bool {
+    fn is_hallway_segment_empty(&self, idx: usize, col_a: i8, col_b: i8) -> bool {
         let col_range = col_a.min(col_b)..=col_a.max(col_b);
-        for (i, &cell) in self.cells.iter().enumerate() {
-            let (row, col) = cell_coord(i);
-            if row == 0 && col_range.contains(&col) && i != idx && cell != Cell::E {
-                return false;
-            }
-        }
-        true
+        (0..self.cells.len())
+            .filter(|&i| {
+                let (r, c) = cell_coord(i);
+                r == 0 && col_range.contains(&c) && i != idx
+            })
+            .all(|i| self.cells[i] == Cell::E)
     }
 
-    fn cell_at_coord(&self, coord: (u8, u8)) -> Option<Cell> {
-        if let Some(idx) = cell_index_at_coord(coord) {
-            return Some(self.cells[idx]);
-        }
-        None
+    fn cell_at_coord(&self, coord: (i8, i8)) -> Option<Cell> {
+        cell_index_at_coord(coord).map(|idx| self.cells[idx])
     }
 
     fn available_moves(&self) -> Vec<Move> {
         let mut moves = vec![];
-        let row_max = self.amphipod_count() as u8 / 4;
+        let row_max = self.amphipod_count() as i8 / 4;
 
         'next_cell: for (i, &cell) in self.cells.iter().enumerate() {
             if cell == Cell::E {
@@ -196,7 +186,7 @@ impl State {
                     }
                 }
 
-                const HALLWAY_COLS: [u8; 7] = [1, 2, 4, 6, 8, 10, 11];
+                const HALLWAY_COLS: [i8; 7] = [1, 2, 4, 6, 8, 10, 11];
                 for &y in HALLWAY_COLS.iter() {
                     if self.is_hallway_segment_empty(i, col, y) {
                         moves.push(self.get_move(i, (0, y)).unwrap());
@@ -241,22 +231,19 @@ fn dijkstra(init: &State, end: &State) -> Option<(Vec<Move>, u32)> {
     let mut queue = BinaryHeap::new();
     queue.push(init.clone());
 
-    while !queue.is_empty() {
-        let state = queue.pop().unwrap();
-        let (cost, state_key) = (state.cost, state.cells_hash());
-
-        // end state reached, trace move path and return total cost
+    while let Some(state) = queue.pop() {
+        // if end state is reached, trace move path and return total cost
         if state.equal_cells_with(end) {
             let mut path = vec![];
-            let init_key = init.cells_hash();
-            let mut k = state_key;
-            while k != init_key {
-                let (h, m) = prevs.get(&k).unwrap();
+            let init_hash = init.cells_hash();
+            let mut hash = state.cells_hash();
+            while hash != init_hash {
+                let (h, m) = prevs.get(&hash).unwrap();
                 path.push(m.clone());
-                k = *h;
+                hash = *h;
             }
             path.reverse();
-            return Some((path, cost));
+            return Some((path, state.cost));
         }
 
         let moves = state.available_moves();
@@ -267,7 +254,7 @@ fn dijkstra(init: &State, end: &State) -> Option<(Vec<Move>, u32)> {
                 Some(&c) if next.cost >= c => continue,
                 _ => {
                     costs.insert(next_key, next.cost);
-                    prevs.insert(next_key, (state_key, m.clone()));
+                    prevs.insert(next_key, (state.cells_hash(), m.clone()));
                 }
             };
             queue.push(next);
@@ -283,16 +270,13 @@ fn main() {
     lines.next();
     let mut grid: Vec<Vec<_>> = lines.map(|l| l.chars().collect()).collect();
 
-    let cells: Vec<_> = (0..23)
-        .map(|i| {
-            let (x, y) = cell_coord(i);
-            if x == 1 || x == 2 {
-                Cell::from(grid[x as usize][y as usize])
-            } else {
-                E
-            }
-        })
-        .collect();
+    let mut cells = vec![E; 23];
+    for (i, c) in cells.iter_mut().enumerate() {
+        let (x, y) = cell_coord(i);
+        if x == 1 || x == 2 {
+            *c = Cell::from(grid[x as usize][y as usize]);
+        }
+    }
     let init1 = State { cells, cost: 0 };
     let end1 = State {
         cells: vec![
@@ -305,12 +289,11 @@ fn main() {
     grid.insert(2, "  #D#C#B#A#".chars().collect());
     grid.insert(3, "  #D#B#A#C#".chars().collect());
 
-    let cells: Vec<_> = (0..23)
-        .map(|i| {
-            let (x, y) = cell_coord(i);
-            Cell::from(grid[x as usize][y as usize])
-        })
-        .collect();
+    let mut cells = vec![E; 23];
+    for (i, c) in cells.iter_mut().enumerate() {
+        let (x, y) = cell_coord(i);
+        *c = Cell::from(grid[x as usize][y as usize]);
+    }
     let init2 = State { cells, cost: 0 };
     let end2 = State {
         cells: vec![
