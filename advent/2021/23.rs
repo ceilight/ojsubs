@@ -1,12 +1,10 @@
-// rewriting day 19's solution for the meme
-
 use std::cmp::Ordering;
 use std::collections::{BinaryHeap, HashMap};
 use std::io::{self, BufRead};
 use std::time::Instant;
 
 const CELLS_ROW: [i8; 23] = [
-    1, 1, 1, 1, 1, 1, 1, 2, 3, 4, 5, 2, 3, 4, 5, 2, 3, 4, 5, 2, 3, 4, 5,
+    0, 0, 0, 0, 0, 0, 0, 1, 2, 3, 4, 1, 2, 3, 4, 1, 2, 3, 4, 1, 2, 3, 4,
 ];
 const CELLS_COL: [i8; 23] = [
     1, 2, 4, 6, 8, 10, 11, 3, 3, 3, 3, 5, 5, 5, 5, 7, 7, 7, 7, 9, 9, 9, 9,
@@ -119,7 +117,7 @@ impl State {
         (0..self.cells.len())
             .filter(|&i| {
                 let (r, c) = cell_coord(i);
-                r == 1 && col_range.contains(&c) && i != idx
+                r == 0 && col_range.contains(&c) && i != idx
             })
             .all(|i| self.cells[i] == Cell::E)
     }
@@ -130,7 +128,7 @@ impl State {
 
     fn available_moves(&self) -> Vec<Move> {
         let mut moves = vec![];
-        let row_max = 1 + self.amphipod_count() as i8 / 4;
+        let row_max = self.amphipod_count() as i8 / 4;
 
         'next_cell: for (i, &cell) in self.cells.iter().enumerate() {
             if cell == Cell::E {
@@ -138,15 +136,15 @@ impl State {
             }
             let (row, col) = cell_coord(i);
 
-            if row == 1 {
+            if row == 0 {
                 // Hallway to target room transition
                 let dest_col = cell.target_column();
-                let mut dest_row = 1;
+                let mut dest_row = 0;
 
                 // Iterate over the target room from the bottom up to find the target cell.
                 // Check if there are amphipods of other type inside the room
                 // so they won't get stuck when the amphipod moves in target room
-                for x in (2..=row_max).rev() {
+                for x in (1..=row_max).rev() {
                     match self.cell_at_coord((x, dest_col)) {
                         Some(Cell::E) => {
                             dest_row = x;
@@ -160,14 +158,14 @@ impl State {
 
                 // Also, make sure the hallway segment between the amphipod and the
                 // target room is empty before moving
-                assert_ne!(dest_row, 1);
+                assert_ne!(dest_row, 0);
                 if self.is_hallway_segment_empty(i, col, dest_col) {
                     moves.push(self.get_move(i, (dest_row, dest_col)).unwrap());
                 }
             } else {
                 // Room to hallway transition
                 // Amphipod can move to the hallway when there are no amphipods overhead
-                for x in 2..row {
+                for x in 1..row {
                     match self.cell_at_coord((x, col)) {
                         Some(Cell::E) => (),
                         Some(_) => continue 'next_cell,
@@ -199,7 +197,7 @@ impl State {
                 const HALLWAY_COLS: [i8; 7] = [1, 2, 4, 6, 8, 10, 11];
                 for &y in HALLWAY_COLS.iter() {
                     if self.is_hallway_segment_empty(i, col, y) {
-                        moves.push(self.get_move(i, (1, y)).unwrap());
+                        moves.push(self.get_move(i, (0, y)).unwrap());
                     }
                 }
             }
@@ -277,7 +275,8 @@ fn dijkstra(init: &State, end: &State) -> Option<(Vec<Move>, u32)> {
 fn main() {
     use Cell::*;
 
-    let lines = io::stdin().lock().lines().map(Result::unwrap);
+    let mut lines = io::stdin().lock().lines().map(Result::unwrap);
+    lines.next();
     let grid1: Vec<Vec<_>> = lines.map(|l| l.chars().collect()).collect();
     let mut grid2 = grid1.clone();
 
@@ -290,8 +289,8 @@ fn main() {
     };
 
     // add 2 more lines for part 2
-    grid2.insert(3, "  #D#C#B#A#".chars().collect());
-    grid2.insert(4, "  #D#B#A#C#".chars().collect());
+    grid2.insert(2, "  #D#C#B#A#".chars().collect());
+    grid2.insert(3, "  #D#B#A#C#".chars().collect());
     let init2 = State::parse_grid(grid2);
     let end2 = State {
         cells: vec![
