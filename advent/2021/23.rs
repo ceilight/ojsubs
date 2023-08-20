@@ -6,7 +6,7 @@ use std::io::{self, BufRead};
 use std::time::Instant;
 
 const CELLS_ROW: [i8; 23] = [
-    0, 0, 0, 0, 0, 0, 0, 1, 2, 3, 4, 1, 2, 3, 4, 1, 2, 3, 4, 1, 2, 3, 4,
+    1, 1, 1, 1, 1, 1, 1, 2, 3, 4, 5, 2, 3, 4, 5, 2, 3, 4, 5, 2, 3, 4, 5,
 ];
 const CELLS_COL: [i8; 23] = [
     1, 2, 4, 6, 8, 10, 11, 3, 3, 3, 3, 5, 5, 5, 5, 7, 7, 7, 7, 9, 9, 9, 9,
@@ -71,6 +71,18 @@ struct Move {
 }
 
 impl State {
+    fn parse_grid(grid: Vec<Vec<char>>) -> Self {
+        let room_depth = grid.len() as i8 - 2;
+        let mut cells = vec![Cell::E; 23];
+        for (i, c) in cells.iter_mut().enumerate() {
+            let (x, y) = cell_coord(i);
+            if x > 0 && x <= room_depth {
+                *c = Cell::from(grid[x as usize][y as usize]);
+            }
+        }
+        State { cells, cost: 0 }
+    }
+
     // Since a cell can be one of 5 values (A, B, C, D, empty), the cells attribute
     // can be hashed in a base 5 system number
     fn cells_hash(&self) -> u64 {
@@ -85,7 +97,6 @@ impl State {
         assert!(u_idx < 23);
         let u = cell_coord(u_idx);
         let dist = (v.0 - u.0).abs() + (v.1 - u.1).abs();
-
         cell_index_at_coord(v).map(|dest_idx| Move {
             orig_idx: u_idx,
             dest_idx,
@@ -108,7 +119,7 @@ impl State {
         (0..self.cells.len())
             .filter(|&i| {
                 let (r, c) = cell_coord(i);
-                r == 0 && col_range.contains(&c) && i != idx
+                r == 1 && col_range.contains(&c) && i != idx
             })
             .all(|i| self.cells[i] == Cell::E)
     }
@@ -119,7 +130,7 @@ impl State {
 
     fn available_moves(&self) -> Vec<Move> {
         let mut moves = vec![];
-        let row_max = self.amphipod_count() as i8 / 4;
+        let row_max = 1 + self.amphipod_count() as i8 / 4;
 
         'next_cell: for (i, &cell) in self.cells.iter().enumerate() {
             if cell == Cell::E {
@@ -127,15 +138,15 @@ impl State {
             }
             let (row, col) = cell_coord(i);
 
-            if row == 0 {
+            if row == 1 {
                 // Hallway to target room transition
                 let dest_col = cell.target_column();
-                let mut dest_row = 0;
+                let mut dest_row = 1;
 
                 // Iterate over the target room from the bottom up to find the target cell.
                 // Check if there are amphipods of other type inside the room
                 // so they won't get stuck when the amphipod moves in target room
-                for x in (1..=row_max).rev() {
+                for x in (2..=row_max).rev() {
                     match self.cell_at_coord((x, dest_col)) {
                         Some(Cell::E) => {
                             dest_row = x;
@@ -149,15 +160,14 @@ impl State {
 
                 // Also, make sure the hallway segment between the amphipod and the
                 // target room is empty before moving
-                assert_ne!(dest_row, 0);
-                if !self.is_hallway_segment_empty(i, col, dest_col) {
-                    continue;
+                assert_ne!(dest_row, 1);
+                if self.is_hallway_segment_empty(i, col, dest_col) {
+                    moves.push(self.get_move(i, (dest_row, dest_col)).unwrap());
                 }
-                moves.push(self.get_move(i, (dest_row, dest_col)).unwrap());
             } else {
                 // Room to hallway transition
                 // Amphipod can move to the hallway when there are no amphipods overhead
-                for x in 1..row {
+                for x in 2..row {
                     match self.cell_at_coord((x, col)) {
                         Some(Cell::E) => (),
                         Some(_) => continue 'next_cell,
@@ -182,14 +192,14 @@ impl State {
                         }
                     }
                     if all_comrades {
-                        continue 'next_cell;
+                        continue;
                     }
                 }
 
                 const HALLWAY_COLS: [i8; 7] = [1, 2, 4, 6, 8, 10, 11];
                 for &y in HALLWAY_COLS.iter() {
                     if self.is_hallway_segment_empty(i, col, y) {
-                        moves.push(self.get_move(i, (0, y)).unwrap());
+                        moves.push(self.get_move(i, (1, y)).unwrap());
                     }
                 }
             }
@@ -228,6 +238,7 @@ impl PartialOrd for State {
 fn dijkstra(init: &State, end: &State) -> Option<(Vec<Move>, u32)> {
     let mut costs: HashMap<u64, u32> = HashMap::new();
     let mut prevs: HashMap<u64, (u64, Move)> = HashMap::new();
+
     let mut queue = BinaryHeap::new();
     queue.push(init.clone());
 
@@ -266,18 +277,11 @@ fn dijkstra(init: &State, end: &State) -> Option<(Vec<Move>, u32)> {
 fn main() {
     use Cell::*;
 
-    let mut lines = io::stdin().lock().lines().map(Result::unwrap);
-    lines.next();
-    let mut grid: Vec<Vec<_>> = lines.map(|l| l.chars().collect()).collect();
+    let lines = io::stdin().lock().lines().map(Result::unwrap);
+    let grid1: Vec<Vec<_>> = lines.map(|l| l.chars().collect()).collect();
+    let mut grid2 = grid1.clone();
 
-    let mut cells = vec![E; 23];
-    for (i, c) in cells.iter_mut().enumerate() {
-        let (x, y) = cell_coord(i);
-        if x == 1 || x == 2 {
-            *c = Cell::from(grid[x as usize][y as usize]);
-        }
-    }
-    let init1 = State { cells, cost: 0 };
+    let init1 = State::parse_grid(grid1);
     let end1 = State {
         cells: vec![
             E, E, E, E, E, E, E, A, A, E, E, B, B, E, E, C, C, E, E, D, D, E, E,
@@ -286,15 +290,9 @@ fn main() {
     };
 
     // add 2 more lines for part 2
-    grid.insert(2, "  #D#C#B#A#".chars().collect());
-    grid.insert(3, "  #D#B#A#C#".chars().collect());
-
-    let mut cells = vec![E; 23];
-    for (i, c) in cells.iter_mut().enumerate() {
-        let (x, y) = cell_coord(i);
-        *c = Cell::from(grid[x as usize][y as usize]);
-    }
-    let init2 = State { cells, cost: 0 };
+    grid2.insert(3, "  #D#C#B#A#".chars().collect());
+    grid2.insert(4, "  #D#B#A#C#".chars().collect());
+    let init2 = State::parse_grid(grid2);
     let end2 = State {
         cells: vec![
             E, E, E, E, E, E, E, A, A, A, A, B, B, B, B, C, C, C, C, D, D, D, D,
@@ -309,7 +307,6 @@ fn main() {
     //     println!("{:?} -> {:?} ", cell_coord(m.orig_idx), cell_coord(m.dest_idx));
     // }
     println!("Part 1: {} ({}ms elapsed)", c, p1_time.as_millis());
-
     let start = Instant::now();
     let (_p, c) = dijkstra(&init2, &end2).unwrap();
     let p2_time = start.elapsed();
