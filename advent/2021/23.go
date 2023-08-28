@@ -9,26 +9,39 @@ import (
 )
 
 // There are 23 valid cells, so let's get all of them indexed
-var cellPosX = [23]int{0, 1, 3, 5, 7, 9, 10, 2, 2, 2, 2, 4, 4, 4, 4, 6, 6, 6, 6, 8, 8, 8, 8}
-var cellPosY = [23]int{0, 0, 0, 0, 0, 0, 0, 1, 2, 3, 4, 1, 2, 3, 4, 1, 2, 3, 4, 1, 2, 3, 4}
+var cellsRow = [23]int{0, 0, 0, 0, 0, 0, 0, 1, 2, 3, 4, 1, 2, 3, 4, 1, 2, 3, 4, 1, 2, 3, 4}
+var cellsCol = [23]int{1, 2, 4, 6, 8, 10, 11, 3, 3, 3, 3, 5, 5, 5, 5, 7, 7, 7, 7, 9, 9, 9, 9}
 
 type State struct {
-	// Each element represents the state of a cell. A, B, C, D indicate the amphipods
-	// while the period mark indicates empty cell.
+	// Each element represents the state of a cell.
+	// A, B, C, D indicate the amphipods while the period mark indicates empty cell
 	cells []byte
 	// Total cost to reach this state from initial state
 	cost int
 }
 
-// Info about one amphipod's move
 type Move struct {
 	// Indices of cells where amphipod stays before and after moving
 	orig, dest int
-	// Cost of a single move (not to be confused with total cost in State.cost)
+	// Cost of a single move
 	cost int
 }
 
-// Weighted costs by amphipod's kind
+func newState(grid [][]byte) State {
+	maxRow := len(grid) - 2
+	cells := make([]byte, 23)
+	for i := range cells {
+		x, y := cellsRow[i], cellsCol[i]
+		if x > 0 && x <= maxRow {
+			cells[i] = grid[x][y]
+		} else {
+			cells[i] = '.'
+		}
+	}
+	return State{cells, 0}
+}
+
+// Weighted costs by amphipod type
 var costs = map[byte]int{
 	'A': 1,
 	'B': 10,
@@ -44,12 +57,12 @@ func abs(a int) int {
 }
 
 // Returns information about one amphipod's move
-func (s *State) getMove(index, destX, destY int) Move {
-	kind := s.cells[index]
-	x, y := cellPosX[index], cellPosY[index]
-	distance := abs(x-destX) + abs(y-destY)
-	cost := distance * costs[kind]
-	destIndex := getCellIndex(destX, destY)
+func (s *State) getMove(index, destRow, destCol int) Move {
+	cell := s.cells[index]
+	x, y := cellsRow[index], cellsCol[index]
+	dist := abs(x-destRow) + abs(y-destCol)
+	cost := dist * costs[cell]
+	destIndex := getCellIndex(destRow, destCol)
 	return Move{index, destIndex, cost}
 }
 
@@ -63,14 +76,14 @@ func (s *State) applyMove(m Move) State {
 }
 
 // Checks if amphipod can move along the hallway starting from column x to destX
-func (s *State) isHallwayOpen(x, destX, index int) bool {
-	xLeft, xRight := x, destX
-	if destX < x {
-		xLeft, xRight = destX, x
+func (s *State) isHallwayOpen(col, destCol, index int) bool {
+	lCol, rCol := col, destCol
+	if lCol > rCol {
+		lCol, rCol = rCol, lCol
 	}
 	for i, cell := range s.cells {
-		x, y := cellPosX[i], cellPosY[i]
-		if i != index && y == 0 && x >= xLeft && x <= xRight && cell != '.' {
+		x, y := cellsRow[i], cellsCol[i]
+		if i != index && x == 0 && y >= lCol && y <= rCol && cell != '.' {
 			return false
 		}
 	}
@@ -85,11 +98,10 @@ var digits = map[byte]int64{
 	'D': 4,
 }
 
-// Returns the representation of cells attribute in hashable data type
-// Since the cell state can only be one of 5 values (A, B, C, D, empty cell), the cells attribute
-// can be represented in a base 5 system, of which the largest value (5 pow 23 - 1 ~ 1.192e16) is
-// within int64 range
-func (s *State) getCellsKey() int64 {
+// Since the cell state can only be one of 5 values (A, B, C, D, empty), the cells
+// attribute can be represented in a base 5 system, of which the largest value
+// (5 pow 23 - 1 ~ 1.192e16) is within int64 range
+func (s *State) cellsHash() int64 {
 	var key int64
 	for _, cell := range s.cells {
 		key = 5*key + digits[cell]
@@ -99,20 +111,20 @@ func (s *State) getCellsKey() int64 {
 
 func getCellIndex(x, y int) int {
 	for i := 0; i < 23; i++ {
-		if cellPosX[i] == x && cellPosY[i] == y {
+		if cellsRow[i] == x && cellsCol[i] == y {
 			return i
 		}
 	}
 	return -1
 }
 
-// Returns a cell kind from coordinate, if a cell is invalid or out of range, `false` is returned
-func (s *State) getCell(x, y int) (byte, bool) {
+// Returns a cell at given coordinate, if a cell is out of range, `\0` is returned
+func (s *State) getCell(x, y int) byte {
 	index := getCellIndex(x, y)
 	if index == -1 {
-		return 0, false
+		return 0
 	}
-	return s.cells[index], true
+	return s.cells[index]
 }
 
 func (s *State) amphipodCount() int {
@@ -125,92 +137,74 @@ func (s *State) amphipodCount() int {
 	return count
 }
 
-var destRoom = map[byte]int{
-	'A': 2,
-	'B': 4,
-	'C': 6,
-	'D': 8,
+var destRoomCol = map[byte]int{
+	'A': 3,
+	'B': 5,
+	'C': 7,
+	'D': 9,
 }
 
 func (s *State) availableMoves() []Move {
 	moves := []Move{}
+	maxRow := s.amphipodCount() / 4
 
-	maxY := 4
-	if s.amphipodCount() == 8 {
-		maxY = 2
-	}
-
+nextCell:
 	for i, cell := range s.cells {
 		// ignore empty cells
 		if cell == '.' {
 			continue
 		}
+		col, row := cellsCol[i], cellsRow[i]
+		destCol := destRoomCol[cell]
 
-		curX, curY := cellPosX[i], cellPosY[i]
-		destX := destRoom[cell]
-
-		// already in its right place
-		if curX == destX && curY == maxY {
-			continue
-		}
-
-		// hallway to room transition (destY is the lowest empty cell in the room)
-		if curY == 0 {
-			destY := -1
-			for y := maxY; y >= 1; y-- {
-				kind, _ := s.getCell(destX, y)
-				if kind == '.' {
-					destY = y
+		if row == 0 {
+			// Hallway to target room transition:
+			// Iterate over the target room from the bottom up to find the target cell.
+			// Check if there are amphipods of other type inside the room
+			// so they won't get stuck when the amphipod moves in target room
+			destRow := 0
+			for x := maxRow; x >= 1; x-- {
+				c := s.getCell(x, destCol)
+				if c == '.' {
+					destRow = x
 					break
-				}
-				if kind != cell {
-					break
+				} else if c != cell {
+					continue nextCell
 				}
 			}
-			if destY == -1 {
-				continue
+			// Also, make sure the hallway segment between the amphipod and the
+			// target room is empty before moving
+			if s.isHallwayOpen(col, destCol, i) {
+				moves = append(moves, s.getMove(i, destRow, destCol))
 			}
-
-			if s.isHallwayOpen(curX, destX, i) {
-				moves = append(moves, s.getMove(i, destX, destY))
-			}
-			continue
-		}
-
-		// amphipod is in either of the 4 side rooms
-		// check if there's any amphipod above them
-		isStuck := false
-		for y := 1; y < curY; y++ {
-			kind, _ := s.getCell(curX, y)
-			if kind != '.' {
-				isStuck = true
-				break
-			}
-		}
-		if isStuck {
-			continue
-		}
-
-		// suppose current amphipods is in its destination room
-		// check if there's any amphipod under it that is not in its correct room
-		if curX == destX {
-			isSet := true
-			for y := curY + 1; y <= maxY; y++ {
-				kind, _ := s.getCell(curX, y)
-				if kind != cell {
-					isSet = false
-					break
+		} else {
+			// Room to hallway transition:
+			// Amphipod can move to the hallway when there are no amphipods overhead
+			for x := 1; x < row; x++ {
+				if s.getCell(x, col) != '.' {
+					continue nextCell
 				}
 			}
-			if isSet {
-				continue
+			// If it's already in the target room, it only moves out when it has
+			// to make way for amphipods underneath that are in the wrong room to
+			// move to their target rooms
+			if col == destCol {
+				isSet := true
+				for x := row + 1; x <= maxRow; x++ {
+					if s.getCell(x, col) != cell {
+						isSet = false
+						break
+					}
+				}
+				if isSet {
+					continue
+				}
 			}
-		}
-
-		// room to hallway transition
-		for _, hallX := range []int{0, 1, 3, 5, 7, 9, 10} {
-			if s.isHallwayOpen(curX, hallX, i) {
-				moves = append(moves, s.getMove(i, hallX, 0))
+			// Move to all reachable cells in the hallway
+			for _, hallCol := range []int{1, 2, 4, 6, 8, 10, 11} {
+				if s.isHallwayOpen(col, hallCol, i) {
+					moves = append(moves, s.getMove(i, 0, hallCol))
+				}
 			}
 		}
 	}
@@ -231,12 +225,12 @@ func (s *State) isEqualTo(other State) bool {
 }
 
 // Priority queue implementation
-type PQueue []State
+type PQueue []*State
 
 func (h PQueue) Len() int           { return len(h) }
 func (h PQueue) Less(i, j int) bool { return h[i].cost < h[j].cost }
 func (h PQueue) Swap(i, j int)      { h[i], h[j] = h[j], h[i] }
-func (h *PQueue) Push(x any)        { *h = append(*h, x.(State)) }
+func (h *PQueue) Push(x any)        { *h = append(*h, x.(*State)) }
 
 func (h *PQueue) Pop() any {
 	old := *h
@@ -246,101 +240,73 @@ func (h *PQueue) Pop() any {
 	return x
 }
 
-func dijkstra(init, end []byte) (int, []State) {
+func dijkstra(init, end State) (int, []*State) {
 	costs := make(map[int64]int)
-	prev := make(map[int64]State)
-
-	initState := State{init, 0}
-	endState := State{end, 0} // a dummy one to compare with other states
-
-	pq := PQueue{initState}
+	prevs := make(map[int64]*State)
+	pq := PQueue{&init}
 	heap.Init(&pq)
 
 	for len(pq) > 0 {
-		cur := heap.Pop(&pq).(State)
-		cost := cur.cost
-
-		if cur.isEqualTo(endState) {
-			path := []State{}
-			for {
+		state := heap.Pop(&pq).(*State)
+		// If end state is reached, trace state path and return total cost
+		if state.isEqualTo(end) {
+			path := []*State{}
+			cur := state
+			for cur.isEqualTo(init) {
 				path = append(path, cur)
-				if cur.isEqualTo(initState) {
-					break
-				}
-				curKey := cur.getCellsKey()
-				prev, found := prev[curKey]
-				if !found {
-					panic(curKey)
-				}
-				cur = prev
+				cur = prevs[cur.cellsHash()]
 			}
+			path = append(path, &init)
 			for i, j := 0, len(path)-1; i < j; i, j = i+1, j-1 {
 				path[i], path[j] = path[j], path[i]
 			}
-			return cost, path
+			return state.cost, path
 		}
 
-		for _, move := range cur.availableMoves() {
-			next := cur.applyMove(move)
-			nextKey := next.getCellsKey()
+		for _, move := range state.availableMoves() {
+			next := state.applyMove(move)
+			nextKey := next.cellsHash()
 			if c, ok := costs[nextKey]; !ok || next.cost < c {
-				prev[nextKey] = cur
+				prevs[nextKey] = state
 				costs[nextKey] = next.cost
-				heap.Push(&pq, next)
+				heap.Push(&pq, &next)
 			}
 		}
 	}
 	return -1, nil
 }
 
-var final1 = []byte(".......AA..BB..CC..DD..")
-var final2 = []byte(".......AAAABBBBCCCCDDDD")
-
-func parseInput(scanner *bufio.Scanner) []byte {
-	lines := []string{}
-	for scanner.Scan() {
-		line := scanner.Text()
-		lines = append(lines, line)
-	}
-	if err := scanner.Err(); err != nil {
-		panic(err)
-	}
-
-	cells := make([]byte, 23)
-	for i := range cells {
-		cells[i] = '.'
-	}
-	i := 7
-	for _, col := range []int{3, 5, 7, 9} {
-		cells[i] = lines[2][col]
-		cells[i+1] = lines[3][col]
-		i += 4
-	}
-	return cells
-}
-
-func getInputForPart2(cells []byte) []byte {
-	cellsTemp := make([]byte, len(cells))
-	copy(cellsTemp, cells)
-	addition := [4][2]byte{{'D', 'D'}, {'C', 'B'}, {'B', 'A'}, {'A', 'C'}}
-	for i, start := range []int{7, 11, 15, 19} {
-		cellsTemp[start+3] = cellsTemp[start+1]
-		cellsTemp[start+1] = addition[i][0]
-		cellsTemp[start+2] = addition[i][1]
-	}
-	return cellsTemp
-}
-
 func main() {
-	start1 := parseInput(bufio.NewScanner(os.Stdin))
-	start2 := getInputForPart2(start1)
+	scanner := bufio.NewScanner(os.Stdin)
+	scanner.Scan()
+
+	grid := [][]byte{}
+	for scanner.Scan() {
+		row := []byte(scanner.Text())
+		grid = append(grid, row)
+	}
+	init1 := newState(grid)
+	end1 := State{
+		cells: []byte(".......AA..BB..CC..DD.."),
+		cost:  0,
+	}
+
+	// Add 2 more lines in the input for part 2
+	grid = append(grid[:4], grid[2:]...)
+	grid[2] = []byte("  #D#C#B#A#")
+	grid[3] = []byte("  #D#B#A#C#")
+	init2 := newState(grid)
+	end2 := State{
+		cells: []byte(".......AAAABBBBCCCCDDDD"),
+		cost:  0,
+	}
 
 	startTime := time.Now()
-	p1Cost, _ := dijkstra(start1, final1)
+	p1Cost, _ := dijkstra(init1, end1)
 	p1Time := fmt.Sprint(time.Since(startTime))
 
 	startTime = time.Now()
-	p2Cost, _ := dijkstra(start2, final2)
+	p2Cost, _ := dijkstra(init2, end2)
 	p2Time := fmt.Sprint(time.Since(startTime))
 
 	fmt.Printf("Part 1: %d (%s elapsed)\n", p1Cost, p1Time)
