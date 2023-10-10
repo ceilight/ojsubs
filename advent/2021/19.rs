@@ -2,7 +2,6 @@
 
 use std::collections::{HashMap, HashSet};
 use std::io::{self, BufRead};
-// use std::fs;
 
 type Pt = (i32, i32, i32);
 
@@ -174,8 +173,6 @@ fn fix(target_report: &[Pt], base_report: &[Pt], candidate_map: &MC) -> Option<(
 
 fn main() {
     let mut lines = io::stdin().lock().lines().map(Result::unwrap);
-    // let ss = fs::read_to_string("./temp.txt").unwrap();
-    // let mut lines = ss.lines().map(String::from);
 
     let mut reports = Vec::new();
     let mut pair_maps = Vec::new();
