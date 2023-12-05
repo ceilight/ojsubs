@@ -1,5 +1,5 @@
-use std::io::{self, BufRead};
 use std::collections::HashSet;
+use std::io::{self, BufRead};
 
 fn main() {
     let wins: Vec<usize> = io::stdin()
@@ -13,7 +13,8 @@ fn main() {
                 .split_whitespace()
                 .flat_map(str::parse::<u32>)
                 .collect();
-            base_cards.trim()
+            base_cards
+                .trim()
                 .split_whitespace()
                 .filter(|&x| {
                     let x = x.parse::<u32>().unwrap();
@@ -27,14 +28,16 @@ fn main() {
 }
 
 fn part1(wins: &[usize]) -> u64 {
-    wins.iter().flat_map(|c| (*c > 0).then_some(1u64 << (c - 1))).sum()
+    wins.iter()
+        .flat_map(|c| (*c > 0).then_some(1u64 << (c - 1)))
+        .sum()
 }
 
 fn part2(wins: &[usize]) -> usize {
     let n = wins.len();
     let mut counts = vec![1usize; n];
     for i in 0..n {
-        for j in i+1..(n.min(i+wins[i]+1)) {
+        for j in i + 1..(n.min(i + wins[i] + 1)) {
             counts[j] += counts[i];
         }
     }
