@@ -14,7 +14,6 @@ fn main() {
                 .flat_map(str::parse::<u32>)
                 .collect();
             base_cards
-                .trim()
                 .split_whitespace()
                 .filter(|&x| {
                     let x = x.parse::<u32>().unwrap();

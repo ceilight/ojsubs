@@ -31,12 +31,9 @@ fn parse_input_map<I>(mut lines: I) -> Option<Vec<Transform>>
 where
     I: Iterator<Item = String>,
 {
-    if lines.next().is_none() {
-        return None;
-    }
-
+    lines.next()?;
     let mut transforms = Vec::new();
-    while let Some(line) = lines.next() {
+    for line in lines {
         if line.is_empty() {
             break;
         }
@@ -50,7 +47,7 @@ where
     Some(transforms)
 }
 
-fn part1(seeds: &Vec<usize>, layers: &Vec<Vec<Transform>>) -> usize {
+fn part1(seeds: &[usize], layers: &[Vec<Transform>]) -> usize {
     seeds
         .iter()
         .map(|&x| {
@@ -66,22 +63,18 @@ fn part1(seeds: &Vec<usize>, layers: &Vec<Vec<Transform>>) -> usize {
         .unwrap()
 }
 
-fn part2(seeds: &Vec<usize>, layers: &Vec<Vec<Transform>>) -> usize {
-    // i shouldn't have tried the brute force approach :skull:
-    // (top 10 bits of trolling that went too far)
-
+fn part2(seeds: &[usize], layers: &[Vec<Transform>]) -> usize {
     // convert seed list elements into pairs of (start, len) of seed range
     // the seed ranges are replaced for every layer of mapping
     let mut seed_ranges = zip(seeds.iter().step_by(2), seeds.iter().skip(1).step_by(2))
         .map(|(&a, &b)| (a, b))
-        .collect();
+        .collect::<Vec<_>>();
 
     for layer in layers.iter() {
+        // for every seed range, find sections that can be mapped in the current layer
+        // the remaining sections are included in the next ranges
         let mut next_ranges = Vec::new();
 
-        // for every seed ranges, find sections that can be mapped
-        // using the available maps in the current layers
-        // the remaining sections are directly inserted into the next seed ranges
         for (start, len) in seed_ranges {
             let mut start = start;
             let mut len = len;
@@ -103,9 +96,7 @@ fn part2(seeds: &Vec<usize>, layers: &Vec<Vec<Transform>>) -> usize {
                         dist = dist.min(r.src - start);
                     }
                 }
-
                 if !found {
-                    dist = dist.min(len);
                     next_ranges.push((start, dist));
                     len -= dist;
                     start += dist;
