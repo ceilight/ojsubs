@@ -14,9 +14,10 @@ func main() {
 		line := scanner.Text()
 		board = append(board, []byte(line))
 	}
-	var row, col = len(board), len(board[0])
 
+	var row, col = len(board), len(board[0])
 	var startX, startY int
+
 FindStart:
 	for i, row := range board {
 		for j, c := range row {
@@ -64,10 +65,12 @@ FindStart:
 		}
 	}
 
-	// do a round trip from the starting position and keep track of the loop
+	// part 1
+	// do a round trip from the starting position and insert pipes that belong to the loop
 	x, y := startX, startY
 	dx, dy := startDiff[0][0], startDiff[0][1]
 
+	// tfw no hash set in golang
 	loop := map[int]struct{}{}
 	loop[x*col+y] = struct{}{}
 
@@ -80,7 +83,10 @@ FindStart:
 		if x == startX && y == startY {
 			break
 		}
+
 		loop[x*col+y] = struct{}{}
+
+		// pipe '|', '-' retain the traversal direction
 		switch board[x][y] {
 		case 'F':
 			if dx == -1 && dy == 0 {
@@ -111,12 +117,13 @@ FindStart:
 	// pipe with the furthest distance is equal to floor value of half the loop length
 	fmt.Println("Part 1:", len(loop)/2)
 
+	// part 2
 	// number of tiles enclosed by the loop
-	// traverse row by row while update whether the current tile is inside or not
-	// every time we cross pass any pipe in loop
-	// !!be careful handling the case where we traverse along the loop
 	boBurnhamCount := 0
 
+	// traverse row by row while keeping track on whether the current tile is inside
+	// or not every time we cross past any pipe in loop
+	// !!be careful handling the case where we traverse along the loop
 	for i, row := range board {
 		isInside := false
 		isOnEdge := false
@@ -129,7 +136,7 @@ FindStart:
 					isInside = !isInside
 				case 'L', 'F':
 					if isOnEdge {
-						panic("edge exists right before corner L")
+						panic("edge exists right before opening corner")
 					} else {
 						isOnEdge = true
 						firstCornerOnEdge = c
@@ -156,6 +163,5 @@ FindStart:
 			}
 		}
 	}
-
 	fmt.Println("Part 2:", boBurnhamCount)
 }
