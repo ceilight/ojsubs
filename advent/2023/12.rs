@@ -39,10 +39,10 @@ fn part2(data: &[(Vec<char>, Vec<usize>)]) -> usize {
         // >(separated by ?)
         let r: Vec<_> = r
             .iter()
-            .chain(iter::once(&'?'))
+            .copied()
+            .chain(iter::once('?'))
             .cycle()
             .take(rlen * 5 + 4)
-            .copied()
             .collect();
         let g: Vec<_> = g.iter().cycle().take(glen * 5).copied().collect();
         (r, g)
@@ -64,23 +64,14 @@ fn calc_arrangements<'a>(
     if records.is_empty() {
         if group_lens.is_empty() {
             return 1;
-        } else {
-            return 0;
         }
+        return 0;
     }
     if group_lens.is_empty() {
         if records.contains(&'#') {
             return 0;
-        } else {
-            return 1;
         }
-    }
-
-    let unknown_count = records.iter().filter(|&&x| x == '?').count();
-    let damaged_count = records.iter().filter(|&&x| x == '#').count();
-    let total_count: usize = group_lens.iter().sum();
-    if unknown_count + damaged_count < total_count {
-        return 0;
+        return 1;
     }
 
     if let Some(calc) = memo.get(&(records, group_lens)) {
@@ -100,8 +91,10 @@ fn calc_arrangements<'a>(
             res += calc_arrangements(next_records, next_group_lens, memo);
         }
         '?' => {
+            // unknown report is '.'
             let next_records = &records[1.min(records.len())..];
             res += calc_arrangements(next_records, group_lens, memo);
+            // unknown report is '#'
             if is_possible_group(records, group_lens[0]) {
                 let records_index = (group_lens[0] + 1).min(records.len());
                 let next_records = &records[records_index..];
@@ -117,6 +110,9 @@ fn calc_arrangements<'a>(
 }
 
 fn is_possible_group(records: &[char], len: usize) -> bool {
+    if records.len() < len {
+        return false;
+    }
     if records[..len].contains(&'.') {
         return false;
     }
