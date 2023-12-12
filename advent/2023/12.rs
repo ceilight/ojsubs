@@ -17,17 +17,17 @@ fn main() {
             (records, group_lens)
         })
         .collect();
-    println!("{:?}", part1(&data));
-    println!("{:?}", part2(&data));
+
+    println!("Part 1: {:?}", part1(&data));
+    println!("Part 2: {:?}", part2(&data));
 }
 
 fn part1(data: &[(Vec<char>, Vec<usize>)]) -> usize {
     let mut res = 0;
-    let data = data.iter();
     for (records, group_lens) in data {
+        // not really necessary for part 1, but it'd be fatal solving part 2 w/o memoization
         let mut memo = HashMap::new();
-        let a = calc_arrangements(&records, &group_lens, &mut memo);
-        res += a;
+        res += calc_arrangements(records, group_lens, &mut memo);
     }
     res
 }
@@ -35,21 +35,23 @@ fn part1(data: &[(Vec<char>, Vec<usize>)]) -> usize {
 fn part2(data: &[(Vec<char>, Vec<usize>)]) -> usize {
     let data = data.iter().map(|(r, g)| {
         let (rlen, glen) = (r.len(), g.len());
+        // replace the list of spring conditions with five copies of itself (separated by ?)
+        // >(separated by ?)
         let r: Vec<_> = r
             .iter()
             .chain(iter::once(&'?'))
             .cycle()
             .take(rlen * 5 + 4)
-            .map(|x| *x)
+            .copied()
             .collect();
-        let g: Vec<_> = g.iter().cycle().take(glen * 5).map(|x| *x).collect();
+        let g: Vec<_> = g.iter().cycle().take(glen * 5).copied().collect();
         (r, g)
     });
+
     let mut res = 0;
     for (records, group_lens) in data {
         let mut memo = HashMap::new();
-        let a = calc_arrangements(&records, &group_lens, &mut memo);
-        res += a;
+        res += calc_arrangements(&records, &group_lens, &mut memo);
     }
     res
 }
@@ -117,7 +119,8 @@ fn calc_arrangements<'a>(
 fn is_possible_group(records: &[char], len: usize) -> bool {
     if records[..len].contains(&'.') {
         return false;
-    } else if records.len() > len && records[len] == '#' {
+    }
+    if records.len() > len && records[len] == '#' {
         return false;
     }
     true
