@@ -24,23 +24,23 @@ func (p *Pos) add(rhs Pos) {
 	p.y += rhs.y
 }
 
-func nextDir(dir Pos, tileTile byte) Pos {
+func nextDir(dir Pos, tile byte) Pos {
 	switch {
-	case tileTile == 'F' && dir == North:
+	case tile == 'F' && dir == North:
 		return East
-	case tileTile == 'F' && dir == West:
+	case tile == 'F' && dir == West:
 		return South
-	case tileTile == '7' && dir == North:
+	case tile == '7' && dir == North:
 		return West
-	case tileTile == '7' && dir == East:
+	case tile == '7' && dir == East:
 		return South
-	case tileTile == 'L' && dir == South:
+	case tile == 'L' && dir == South:
 		return East
-	case tileTile == 'L' && dir == West:
+	case tile == 'L' && dir == West:
 		return North
-	case tileTile == 'J' && dir == South:
+	case tile == 'J' && dir == South:
 		return West
-	case tileTile == 'J' && dir == East:
+	case tile == 'J' && dir == East:
 		return North
 	default:
 		panic("this tile is not supposed to be in the loop")
@@ -65,7 +65,6 @@ func main() {
 
 	var row, col = len(board), len(board[0])
 	var tile Pos
-
 FindStart:
 	for i, row := range board {
 		for j, c := range row {
@@ -76,7 +75,7 @@ FindStart:
 		}
 	}
 
-	// find tiles that are connected to the one at starting position
+	// find direction of the starting point
 	var dir Pos
 	if x, y := tile.x-1, tile.y; x >= 0 && (board[x][y] == '|' || board[x][y] == 'F' || board[x][y] == '7') {
 		dir = North
@@ -89,9 +88,8 @@ FindStart:
 	}
 
 	// coordinates of vertices ('S', F', '7', 'J', 'L' tiles) in a loop
-	// (had to flatten the position because golang doesn't seem to have tuples)
-	var vertices []int
-	vertices = append(vertices, tile.x*col+tile.y)
+	var vertices []Pos
+	vertices = append(vertices, tile)
 
 	// do a round trip from the starting position
 FindLoop:
@@ -100,7 +98,6 @@ FindLoop:
 		if tile.x < 0 || tile.x >= row || tile.y < 0 || tile.y >= col {
 			panic("current tile is out of the grid")
 		}
-
 		switch board[tile.x][tile.y] {
 		case '.':
 			panic("out of the loop")
@@ -109,7 +106,7 @@ FindLoop:
 		case '|', '-':
 			continue
 		case 'F', '7', 'L', 'J':
-			vertices = append(vertices, tile.x*col+tile.y)
+			vertices = append(vertices, tile)
 			dir = nextDir(dir, board[tile.x][tile.y])
 		default:
 			panic("invalid character")
@@ -127,13 +124,11 @@ FindLoop:
 	for i := 0; i < verticesCount; i++ {
 		vert := vertices[i]
 		next := vertices[(i+1)%verticesCount]
-		vertX, vertY, nextX, nextY := vert/col, vert%col, next/col, next%col
-
-		if vertX != nextX && vertY != nextY {
+		if vert.x != next.x && vert.y != next.y {
 			panic("adjacent vertices must be connected by vertical or horizontal edges")
 		}
-		loopPeri += abs(nextX-vertX) + abs(nextY-vertY)
-		loopArea += vertX*nextY - vertY*nextX
+		loopPeri += abs(next.x-vert.x) + abs(next.y-vert.y)
+		loopArea += vert.x*next.y - vert.y*next.x
 	}
 	loopArea /= 2
 
