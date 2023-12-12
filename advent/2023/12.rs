@@ -7,14 +7,14 @@ fn main() {
     let data: Vec<_> = lines
         .map(|line| {
             let mut line = line.split(' ');
-            let records = line.next().unwrap();
-            let records: Vec<char> = records.chars().collect();
-            let group_lens = line.next().unwrap();
-            let group_lens: Vec<_> = group_lens
+            let springs: Vec<char> = line.next().unwrap().chars().collect();
+            let groups = line
+                .next()
+                .unwrap()
                 .split(',')
                 .map(|x| x.parse::<usize>().unwrap())
                 .collect();
-            (records, group_lens)
+            (springs, groups)
         })
         .collect();
 
@@ -23,100 +23,98 @@ fn main() {
 }
 
 fn part1(data: &[(Vec<char>, Vec<usize>)]) -> usize {
-    let mut res = 0;
-    for (records, group_lens) in data {
-        // not really necessary for part 1, but it'd be fatal solving part 2 w/o memoization
-        let mut memo = HashMap::new();
-        res += calc_arrangements(records, group_lens, &mut memo);
-    }
-    res
+    data.iter()
+        .map(|(springs, groups)| calc_arrangements(springs, groups, &mut HashMap::new()))
+        .sum()
 }
 
 fn part2(data: &[(Vec<char>, Vec<usize>)]) -> usize {
-    let data = data.iter().map(|(r, g)| {
-        let (rlen, glen) = (r.len(), g.len());
+    let data = data.iter().map(|(springs, groups)| {
+        let (rlen, glen) = (springs.len(), groups.len());
+
         // replace the list of spring conditions with five copies of itself (separated by ?)
         // >(separated by ?)
-        let r: Vec<_> = r
+        let springs: Vec<_> = springs
             .iter()
             .copied()
             .chain(iter::once('?'))
             .cycle()
             .take(rlen * 5 + 4)
             .collect();
-        let g: Vec<_> = g.iter().cycle().take(glen * 5).copied().collect();
-        (r, g)
+        let groups: Vec<_> = groups.iter().cycle().take(glen * 5).copied().collect();
+        (springs, groups)
     });
 
-    let mut res = 0;
-    for (records, group_lens) in data {
-        let mut memo = HashMap::new();
-        res += calc_arrangements(&records, &group_lens, &mut memo);
-    }
-    res
+    data.map(|(springs, groups)| calc_arrangements(&springs, &groups, &mut HashMap::new()))
+        .sum()
 }
 
-fn calc_arrangements<'a>(
-    records: &'a [char],
-    group_lens: &'a [usize],
-    memo: &mut HashMap<(&'a [char], &'a [usize]), usize>,
+fn calc_arrangements(
+    springs: &[char],
+    groups: &[usize],
+    memo: &mut HashMap<(usize, usize), usize>,
 ) -> usize {
-    if records.is_empty() {
-        if group_lens.is_empty() {
+    if springs.is_empty() {
+        if groups.is_empty() {
             return 1;
         }
         return 0;
     }
-    if group_lens.is_empty() {
-        if records.contains(&'#') {
+    if groups.is_empty() {
+        if springs.contains(&'#') {
             return 0;
         }
         return 1;
     }
 
-    if let Some(calc) = memo.get(&(records, group_lens)) {
+    // using springs and groups slice at each call as state seems expensive
+    // and the content of springs and groups isn't changing anyway, so it's a
+    // better idea to make state a pair of usize values indicating the numbers of
+    // springs and groups remaining
+    let state = (springs.len(), groups.len());
+    if let Some(calc) = memo.get(&state) {
         return *calc;
     }
 
     let mut res = 0;
-    match records[0] {
+    match springs[0] {
         '.' => {
-            let next_records = &records[1.min(records.len())..];
-            res += calc_arrangements(next_records, group_lens, memo);
+            let next_springs = &springs[1.min(springs.len())..];
+            res += calc_arrangements(next_springs, groups, memo);
         }
-        '#' if is_possible_group(records, group_lens[0]) => {
-            let records_index = (group_lens[0] + 1).min(records.len());
-            let next_records = &records[records_index..];
-            let next_group_lens = &group_lens[1.min(group_lens.len())..];
-            res += calc_arrangements(next_records, next_group_lens, memo);
+        '#' if is_possible_group(springs, groups[0]) => {
+            let springs_index = (groups[0] + 1).min(springs.len());
+            let next_springs = &springs[springs_index..];
+            let next_groups = &groups[1.min(groups.len())..];
+            res += calc_arrangements(next_springs, next_groups, memo);
         }
         '?' => {
             // unknown report is '.'
-            let next_records = &records[1.min(records.len())..];
-            res += calc_arrangements(next_records, group_lens, memo);
+            let next_springs = &springs[1.min(springs.len())..];
+            res += calc_arrangements(next_springs, groups, memo);
             // unknown report is '#'
-            if is_possible_group(records, group_lens[0]) {
-                let records_index = (group_lens[0] + 1).min(records.len());
-                let next_records = &records[records_index..];
-                let next_group_lens = &group_lens[1.min(group_lens.len())..];
-                res += calc_arrangements(next_records, next_group_lens, memo);
+            if is_possible_group(springs, groups[0]) {
+                let springs_index = (groups[0] + 1).min(springs.len());
+                let next_springs = &springs[springs_index..];
+                let next_groups = &groups[1.min(groups.len())..];
+                res += calc_arrangements(next_springs, next_groups, memo);
             }
         }
         _ => (),
     }
 
-    memo.insert((records, group_lens), res);
+    memo.insert(state, res);
     res
 }
 
-fn is_possible_group(records: &[char], len: usize) -> bool {
-    if records.len() < len {
+fn is_possible_group(springs: &[char], len: usize) -> bool {
+    if springs.len() < len {
         return false;
     }
-    if records[..len].contains(&'.') {
+    if springs[..len].contains(&'.') {
         return false;
     }
-    if records.len() > len && records[len] == '#' {
+    if springs.len() > len && springs[len] == '#' {
         return false;
     }
     true
