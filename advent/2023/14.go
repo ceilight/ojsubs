@@ -22,6 +22,7 @@ func part1(grid [][]byte) int {
 }
 
 func part2(grid [][]byte) int {
+	var load []int
 	memo := make(map[string]int)
 	start, curr := 0, 0
 	for {
@@ -31,20 +32,12 @@ func part2(grid [][]byte) int {
 			break
 		}
 		memo[key] = curr
+		load = append(load, getLoad(grid))
 		grid = cycle(grid)
 		curr++
 	}
 	remaining := (1000000000 - start) % (curr - start)
-	for i := 0; i < remaining; i++ {
-		grid = cycle(grid)
-	}
-	return getLoad(grid)
-}
-
-func printGird(grid [][]byte) {
-	for _, x := range grid {
-		fmt.Printf("%s\n", x)
-	}
+	return load[start+remaining]
 }
 
 func min(a int, b int) int {
@@ -82,7 +75,7 @@ func tiltUp(grid [][]byte) [][]byte {
 	return newGrid
 }
 
-func rotateLeft(grid [][]byte) [][]byte {
+func rotateRight(grid [][]byte) [][]byte {
 	row, col := len(grid), len(grid[0])
 	var newGrid [][]byte
 	for j := 0; j < col; j++ {
@@ -97,7 +90,7 @@ func rotateLeft(grid [][]byte) [][]byte {
 
 func cycle(grid [][]byte) [][]byte {
 	for i := 0; i < 4; i++ {
-		grid = rotateLeft(tiltUp(grid))
+		grid = rotateRight(tiltUp(grid))
 	}
 	return grid
 }
