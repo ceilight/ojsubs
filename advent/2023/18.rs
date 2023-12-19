@@ -35,14 +35,16 @@ fn part1(lines: &[String]) -> isize {
         Instruction { dir, num }
     });
 
-    wait_this_is_just_day_10_p2(plan)
+    // only correct if the trench edges do not form a self-intersecting loop
+    // so that the depth of all blocks in the trench surface is 1
+    trench_area(plan)
 }
 
 fn part2(lines: &[String]) -> isize {
     let plan = lines.iter().map(|l| {
-        let hex = l.split(' ').nth(2).unwrap();
-        let num = usize::from_str_radix(&hex[2..hex.len() - 2], 16).unwrap();
-        let dir = hex.chars().nth(hex.len() - 2).unwrap();
+        let hex = &l[l.find('#').unwrap() + 1..l.find(')').unwrap()];
+        let num = usize::from_str_radix(&hex[..hex.len() - 1], 16).unwrap();
+        let dir = hex.chars().last().unwrap();
         let dir = match dir {
             '0' => Dir::R,
             '1' => Dir::D,
@@ -53,30 +55,30 @@ fn part2(lines: &[String]) -> isize {
         Instruction { dir, num }
     });
 
-    wait_this_is_just_day_10_p2(plan)
+    trench_area(plan)
 }
 
-fn wait_this_is_just_day_10_p2(plan: impl Iterator<Item = Instruction>) -> isize {
-    let mut vertices = vec![];
+// shoelace formula can be applied here like day 10's solution
+// here i use green's theorem + pick's theorem
+fn trench_area(plan: impl Iterator<Item = Instruction>) -> isize {
     let (mut x, mut y) = (0_isize, 0_isize);
+    let mut area = 0_isize;
+    let mut peri = 0_isize;
 
     for instr in plan {
-        vertices.push((x, y));
-        match instr.dir {
-            Dir::U => x -= instr.num as isize,
-            Dir::D => x += instr.num as isize,
-            Dir::L => y -= instr.num as isize,
-            Dir::R => y += instr.num as isize,
+        let num = instr.num as isize;
+        peri += num;
+        let (dx, dy) = match instr.dir {
+            Dir::U => (-num, 0),
+            Dir::D => (num, 0),
+            Dir::L => (0, -num),
+            Dir::R => (0, num),
         };
+        area += x * dy - y * dx;
+        x += dx;
+        y += dy;
     }
+    assert!(x == 0 && y == 0);
 
-    let mut peri = 0_isize;
-    let mut area = 0_isize;
-    for idx in 0..vertices.len() {
-        let next_idx = (idx + 1) % vertices.len();
-        let (u, v) = (vertices[idx], vertices[next_idx]);
-        peri += (u.0 - v.0).abs() + (u.1 - v.1).abs();
-        area += u.0 * v.1 - u.1 * v.0;
-    }
-    (area.abs() - peri) / 2 + 1 + peri
+    (area.abs() + peri) / 2 + 1
 }
