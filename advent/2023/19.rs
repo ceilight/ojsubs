@@ -2,169 +2,163 @@ use std::collections::HashMap;
 use std::io::{self, BufRead};
 
 fn main() {
-    let lines = io::stdin().lock().lines().map(Result::unwrap);
-    let (flows, test) = parse_input(lines);
-    println!("Part 1: {:?}", part1(&flows, &test));
+    let lines: Vec<_> = io::stdin().lock().lines().map(Result::unwrap).collect();
+    let (flows, ratings) = parse_input(&lines);
+    println!("Part 1: {:?}", part1(&flows, &ratings));
     println!("Part 2: {:?}", part2(&flows));
 }
 
 #[derive(Clone, Debug)]
-enum Expr {
+enum Expr<'a> {
     Accepted,
     Rejected,
-    Redirect(String),
+    Redirect(&'a str),
 }
 
-impl From<&str> for Expr {
-    fn from(raw: &str) -> Self {
-        match raw {
+impl<'a> From<&'a str> for Expr<'a> {
+    fn from(s: &'a str) -> Self {
+        match s {
             "A" => Expr::Accepted,
             "R" => Expr::Rejected,
-            raw if !raw.is_empty() => Expr::Redirect(String::from(raw)),
+            s if !s.is_empty() => Expr::Redirect(s),
             _ => panic!("empty workflow label"),
         }
     }
 }
 
 #[derive(Clone, Debug)]
-enum Switch {
-    Less(usize, usize, Expr),
-    More(usize, usize, Expr),
+enum Switch<'a> {
+    Less(usize, usize, Expr<'a>),
+    More(usize, usize, Expr<'a>),
+    Dflt(Expr<'a>),
 }
 
-#[derive(Clone, Debug)]
-struct Workflow {
-    switches: Vec<Switch>,
-    default: Expr,
-}
-
-impl From<&str> for Workflow {
-    fn from(flow: &str) -> Self {
-        let (switches_raw, default_raw) = flow.rsplit_once(',').unwrap();
-        let switches: Vec<_> = switches_raw
-            .split(',')
-            .map(|s| {
-                let (cond, expr) = s.split_once(':').unwrap();
-                let op_idx = cond.find(['>', '<']).unwrap();
-                let var = match &cond[..op_idx] {
+impl<'a> Switch<'a> {
+    fn parse(s: &'a str) -> Self {
+        if let Some((cond, expr)) = s.split_once(':') {
+            let var_idx = |c: &str| -> usize {
+                match c {
                     "x" => 0,
                     "m" => 1,
                     "a" => 2,
                     "s" => 3,
-                    c => panic!("invalid variable {:?}", c),
-                };
-                let val: usize = cond[op_idx + 1..].parse().unwrap();
-                let expr = Expr::from(expr);
-                match cond.as_bytes()[op_idx] {
-                    b'<' => Switch::Less(var, val, expr),
-                    b'>' => Switch::More(var, val, expr),
-                    c => panic!("invalid char {:?}", c),
+                    _ => panic!("invalid variable {:?}", c),
                 }
-            })
-            .collect();
-        let default = Expr::from(default_raw);
-
-        Workflow { switches, default }
+            };
+            let expr = Expr::from(expr);
+            if let Some((var, val)) = cond.split_once('<') {
+                Switch::Less(var_idx(var), val.parse().unwrap(), expr)
+            } else if let Some((var, val)) = cond.split_once('>') {
+                Switch::More(var_idx(var), val.parse().unwrap(), expr)
+            } else {
+                unreachable!();
+            }
+        } else {
+            Switch::Dflt(Expr::from(s))
+        }
     }
 }
 
-type WorkflowMap = HashMap<String, Workflow>;
+type WorkflowMap<'a> = HashMap<&'a str, Vec<Switch<'a>>>;
 
-fn parse_input(mut lines: impl Iterator<Item = String>) -> (WorkflowMap, Vec<Vec<usize>>) {
+fn parse_input(lines: &[String]) -> (WorkflowMap, Vec<Vec<usize>>) {
     let mut flows = HashMap::new();
+    let mut lines = lines.iter();
     loop {
         let line = lines.next().unwrap();
         if line.is_empty() {
             break;
         }
-        let l_end = line.find('{').unwrap();
-        let r_end = line.find('}').unwrap();
-        let label = String::from(&line[..l_end]);
-        let flow = Workflow::from(&line[l_end + 1..r_end]);
+        let (label, flow) = line.strip_suffix('}').unwrap().split_once('{').unwrap();
+        let flow: Vec<_> = flow.split(',').map(Switch::parse).collect();
         flows.insert(label, flow);
     }
 
-    let test: Vec<_> = lines
+    let ratings: Vec<_> = lines
         .map(|line| {
-            let line = &line[line.find('{').unwrap() + 1..line.find('}').unwrap()];
+            let line = line.strip_prefix('{').unwrap().strip_suffix('}').unwrap();
             line.split(',')
-                .map(|x| x[2..].parse::<usize>().unwrap())
+                .map(|s| s[2..].parse::<usize>().unwrap())
                 .collect::<Vec<_>>()
         })
         .collect();
 
-    (flows, test)
+    (flows, ratings)
 }
 
-fn check_nums(flows: &WorkflowMap, expr: &Expr, nums: &[usize]) -> bool {
+fn check_rating<'a>(flows: &WorkflowMap<'a>, expr: &Expr<'a>, rating: &[usize]) -> bool {
     let label = match expr {
         Expr::Accepted => return true,
         Expr::Rejected => return false,
         Expr::Redirect(l) => l,
     };
 
-    let Workflow { switches, default } = flows.get(label).unwrap();
-    for s in switches {
+    let flow = flows.get(label).unwrap();
+    for s in flow {
         match s {
-            Switch::Less(i, v, e) if nums[*i] < *v => return check_nums(flows, e, nums),
-            Switch::More(i, v, e) if nums[*i] > *v => return check_nums(flows, e, nums),
+            Switch::Less(i, v, e) if rating[*i] < *v => return check_rating(flows, e, rating),
+            Switch::More(i, v, e) if rating[*i] > *v => return check_rating(flows, e, rating),
+            Switch::Dflt(e) => return check_rating(flows, e, rating),
             _ => (),
         }
     }
-    check_nums(flows, default, nums)
+    unreachable!();
 }
 
-fn part1(flows: &WorkflowMap, test: &[Vec<usize>]) -> usize {
-    test.iter()
+fn part1(flows: &WorkflowMap, ratings: &[Vec<usize>]) -> usize {
+    ratings
+        .iter()
         .flat_map(|n| {
-            (check_nums(flows, &Expr::Redirect("in".to_owned()), n))
-                .then_some(n.iter().sum::<usize>())
+            (check_rating(flows, &Expr::Redirect("in"), n)).then_some(n.iter().sum::<usize>())
         })
         .sum()
 }
 
-fn find_accepted_ranges(
-    flows: &WorkflowMap,
-    expr: &Expr,
-    mut num_ranges: [(usize, usize); 4], // copy not reference
-) -> Vec<[(usize, usize); 4]> {
-    if num_ranges.iter().any(|(l, r)| l >= r) {
-        return vec![];
+fn count_combinations(ranges: [(usize, usize); 4]) -> usize {
+    ranges.iter().map(|(l, r)| r - l).product()
+}
+
+fn count_accepted_ratings<'a>(
+    flows: &WorkflowMap<'a>,
+    expr: &Expr<'a>,
+    mut ranges: [(usize, usize); 4], // copy not reference
+) -> usize {
+    if ranges.iter().any(|(l, r)| l >= r) {
+        return 0;
     }
     let label = match expr {
-        Expr::Accepted => return vec![num_ranges],
-        Expr::Rejected => return vec![],
+        Expr::Accepted => return count_combinations(ranges),
+        Expr::Rejected => return 0,
         Expr::Redirect(l) => l,
     };
 
-    let mut valid_ranges = vec![];
+    let mut count = 0;
 
-    let Workflow { switches, default } = flows.get(label).unwrap();
-    for s in switches {
-        let (idx, success_range, fail_range, next_expr) = match s {
-            Switch::Less(i, v, e) => {
-                let r = num_ranges[*i];
-                (*i, (r.0, *v), (*v, r.1), e)
+    let flow = flows.get(label).unwrap();
+    for s in flow {
+        match s {
+            Switch::Less(i, val, next) => {
+                let range = ranges[*i];
+                ranges[*i] = (range.0, *val);
+                count += count_accepted_ratings(flows, next, ranges);
+                ranges[*i] = (*val, range.1);
             }
-            Switch::More(i, v, e) => {
-                let r = num_ranges[*i];
-                (*i, (*v + 1, r.1), (r.0, *v + 1), e)
+            Switch::More(i, val, next) => {
+                let range = ranges[*i];
+                ranges[*i] = (*val + 1, range.1);
+                count += count_accepted_ratings(flows, next, ranges);
+                ranges[*i] = (range.0, *val + 1);
+            }
+            Switch::Dflt(next) => {
+                count += count_accepted_ratings(flows, next, ranges);
             }
         };
-        num_ranges[idx] = success_range;
-        valid_ranges.extend(find_accepted_ranges(flows, next_expr, num_ranges));
-        num_ranges[idx] = fail_range;
     }
-    valid_ranges.extend(find_accepted_ranges(flows, default, num_ranges));
 
-    valid_ranges
+    count
 }
 
 fn part2(flows: &WorkflowMap) -> usize {
-    let init_expr = Expr::Redirect("in".to_owned());
-    let ranges = find_accepted_ranges(flows, &init_expr, [(1, 4001); 4]);
-    ranges
-        .iter()
-        .map(|r| r.iter().map(|(l, r)| r - l).product::<usize>())
-        .sum()
+    let init_expr = Expr::Redirect("in");
+    count_accepted_ratings(flows, &init_expr, [(1, 4001); 4])
 }
