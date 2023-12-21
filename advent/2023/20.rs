@@ -7,170 +7,139 @@ fn main() {
     println!("part 2: {}", part2(&lines));
 }
 
+#[derive(Clone, Copy, Debug, Hash)]
+enum Pulse {
+    High,
+    Low,
+}
+
 // untyped module does not count as one
 #[derive(Clone, Debug)]
-enum ModuleKind {
-    Broadcast,
-    Flipflop,
-    Conjuction,
+enum Module<'a> {
+    Bcast,
+    Flip(bool),
+    Conj(HashMap<&'a str, Pulse>),
 }
 
-#[derive(Clone, Debug)]
-struct Module<'a> {
-    kind: ModuleKind,
-    state: bool,
-    receivers: Vec<&'a str>,
+type ModuleMap<'a> = HashMap<&'a str, Module<'a>>;
+type DestsMap<'a> = HashMap<&'a str, Vec<&'a str>>;
+
+fn parse_input(lines: &[String]) -> (ModuleMap<'_>, DestsMap<'_>) {
+    let mut module_map: ModuleMap<'_> = HashMap::new();
+    let mut dests_map: DestsMap<'_> = HashMap::new();
+
+    for s in lines {
+        let (label, dests) = s.split_once(" -> ").unwrap();
+        let (name, module) = match &label[0..1] {
+            "b" => (label, Module::Bcast),
+            "%" => (&label[1..], Module::Flip(false)),
+            "&" => (&label[1..], Module::Conj(HashMap::new())),
+            l => panic!("invalid label format {:?}", l),
+        };
+        module_map.insert(name, module);
+        dests_map.insert(name, dests.split(", ").collect());
+    }
+
+    for (vn, v) in module_map.iter_mut() {
+        if let Module::Conj(inp) = v {
+            inp.extend(
+                dests_map
+                    .iter()
+                    .filter(|(_, udests)| udests.contains(vn))
+                    .map(|(&un, _)| (un, Pulse::Low)),
+            );
+        }
+    }
+
+    (module_map, dests_map)
 }
 
-fn parse_module_config(s: &str) -> (&str, Module) {
-    let (label, receivers) = s.split_once(" -> ").unwrap();
-    let (name, kind) = match &label[0..1] {
-        "b" => (label, ModuleKind::Broadcast),
-        "%" => (&label[1..], ModuleKind::Flipflop),
-        "&" => (&label[1..], ModuleKind::Conjuction),
-        l => panic!("invalid label format {:?}", l),
-    };
-    let module = Module {
-        kind,
-        state: false,
-        receivers: receivers.split(", ").collect(),
-    };
-    (name, module)
-}
+fn press_button<'a, F>(module_map: &mut ModuleMap<'a>, dests_map: &DestsMap<'a>, mut extra: F)
+where
+    F: FnMut(&'a str, &'a str, Pulse),
+{
+    let mut queue = VecDeque::new();
+    queue.push_back(("", "broadcaster", Pulse::Low));
 
-struct Pulse<'a>(&'a str, &'a str, bool);
+    while let Some((sender, curr, pulse)) = queue.pop_front() {
+        extra(sender, curr, pulse);
+
+        if let Some(module) = module_map.get_mut(curr) {
+            let next_pulse = match module {
+                Module::Bcast => pulse,
+                Module::Flip(state) => match pulse {
+                    Pulse::High => continue,
+                    Pulse::Low => {
+                        let p = if *state { Pulse::Low } else { Pulse::High };
+                        *state = !*state;
+                        p
+                    }
+                },
+                Module::Conj(inp) => {
+                    inp.insert(sender, pulse);
+                    if inp.values().all(|&x| matches!(x, Pulse::High)) {
+                        Pulse::Low
+                    } else {
+                        Pulse::High
+                    }
+                }
+            };
+
+            let ns = dests_map.get(curr).unwrap();
+            for next in ns.iter() {
+                queue.push_back((curr, next, next_pulse));
+            }
+        }
+    }
+}
 
 fn part1(lines: &[String]) -> usize {
-    let mut modules: HashMap<_, _> = lines.iter().map(|line| parse_module_config(line)).collect();
-
-    let mut receiving_pulses_map: HashMap<&str, HashMap<&str, bool>> = HashMap::new();
-    for (v_name, v) in modules.iter() {
-        if matches!(v.kind, ModuleKind::Conjuction) {
-            for (u_name, u) in modules.iter() {
-                if u.receivers.contains(v_name) {
-                    receiving_pulses_map
-                        .entry(v_name)
-                        .or_default()
-                        .insert(u_name, false);
-                }
-            }
-        }
-    }
-
+    let (mut module_map, dests_map) = parse_input(lines);
     let (mut low_count, mut high_count) = (0, 0);
-    for _ in 0..1000 {
-        let mut queue: VecDeque<Pulse> = VecDeque::new();
-        queue.push_back(Pulse("", "broadcaster", false));
-        while let Some(Pulse(sender, curr, is_high)) = queue.pop_front() {
-            if is_high {
-                high_count += 1;
-            } else {
-                low_count += 1;
-            }
 
-            if let Some(module) = modules.get_mut(curr) {
-                if let Some(is_next_high) = match module.kind {
-                    ModuleKind::Broadcast => Some(is_high),
-                    ModuleKind::Flipflop => {
-                        if is_high {
-                            None
-                        } else {
-                            module.state = !module.state;
-                            Some(module.state)
-                        }
-                    }
-                    ModuleKind::Conjuction => {
-                        let p = receiving_pulses_map.get_mut(curr).unwrap();
-                        p.insert(sender, is_high);
-                        if p.values().all(|&x| x) {
-                            Some(false)
-                        } else {
-                            Some(true)
-                        }
-                    }
-                } {
-                    for receiver in module.receivers.iter() {
-                        queue.push_back(Pulse(curr, receiver, is_next_high));
-                    }
-                }
-            }
-        }
+    for _ in 0..1000 {
+        press_button(&mut module_map, &dests_map, |_, _, pulse| {
+            match pulse {
+                Pulse::High => high_count += 1,
+                Pulse::Low => low_count += 1,
+            };
+        });
     }
+
     low_count * high_count
 }
 
 fn part2(lines: &[String]) -> usize {
-    let mut modules: HashMap<_, _> = lines.iter().map(|line| parse_module_config(line)).collect();
-
-    let mut receiving_pulses_map: HashMap<&str, HashMap<&str, bool>> = HashMap::new();
-    for (v_name, v) in modules.iter() {
-        if matches!(v.kind, ModuleKind::Conjuction) {
-            for (u_name, u) in modules.iter() {
-                if u.receivers.contains(v_name) {
-                    receiving_pulses_map
-                        .entry(v_name)
-                        .or_default()
-                        .insert(u_name, false);
-                }
-            }
-        }
-    }
+    let (mut module_map, dests_map) = parse_input(lines);
 
     // input observation: 'rx' is an untyped module linked to a single conjuction module M
-    // and the only way to send a low pulse to 'rx' is to get all the incoming pulses to
-    // module M high
-    let rx_prev_name = modules
+    // and the only way to send a low pulse to 'rx' is to have all incoming pulses to
+    // module M to be high ones
+    let target_prev = dests_map
         .iter()
-        .find(|(_, m)| m.receivers.contains(&"rx"))
+        .find(|(_, dests)| dests.contains(&"rx"))
         .unwrap()
         .0;
-    let rx_prev_prev: Vec<_> = receiving_pulses_map[rx_prev_name].keys().collect();
 
-    // tracks the rounds where each module observed by M sends a high pulse
-    let mut history: HashMap<_, _> = rx_prev_prev.iter().map(|&n| (*n, vec![])).collect();
+    let mut history = if let Module::Conj(target_pp) = module_map.get(target_prev).unwrap() {
+        target_pp
+            .keys()
+            .map(|&n| (n, vec![]))
+            .collect::<HashMap<_, _>>()
+    } else {
+        unreachable!();
+    };
 
-    // tweak the range until there's output, it just werks :^)
-    'rounds: for round in 0..1_000_000_usize {
-        let mut queue: VecDeque<Pulse> = VecDeque::new();
-        queue.push_back(Pulse("", "broadcaster", false));
-
-        while let Some(Pulse(sender, curr, is_high)) = queue.pop_front() {
-            if history.contains_key(sender) && is_high {
+    for round in 0..1_000_000 {
+        press_button(&mut module_map, &dests_map, |sender, _, pulse| {
+            if history.contains_key(sender) && matches!(pulse, Pulse::High) {
                 history.entry(sender).and_modify(|x| x.push(round));
-                if history.values().all(|v| v.len() >= 2) {
-                    break 'rounds;
-                }
             }
-
-            if let Some(module) = modules.get_mut(curr) {
-                if let Some(is_next_high) = match module.kind {
-                    ModuleKind::Broadcast => Some(is_high),
-                    ModuleKind::Flipflop => {
-                        if is_high {
-                            None
-                        } else {
-                            module.state = !module.state;
-                            Some(module.state)
-                        }
-                    }
-                    ModuleKind::Conjuction => {
-                        let p = receiving_pulses_map.get_mut(curr).unwrap();
-                        p.insert(sender, is_high);
-                        if p.values().all(|&x| x) {
-                            Some(false)
-                        } else {
-                            Some(true)
-                        }
-                    }
-                } {
-                    for receiver in module.receivers.iter() {
-                        queue.push_back(Pulse(curr, receiver, is_next_high));
-                    }
-                }
-            }
+        });
+        if history.values().all(|v| v.len() >= 2) {
+            break;
         }
     }
-
     lcm(history.values().map(|v| v[1] - v[0]))
 }
 
