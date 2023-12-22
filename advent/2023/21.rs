@@ -10,8 +10,8 @@ fn main() {
             l.chars().collect::<Vec<_>>()
         })
         .collect();
-    println!("{:?}", part1(&garden));
-    println!("{:?}", part2(&garden));
+    println!("Part 1: {}", part1(&garden));
+    println!("Part 2: {}", part2(&garden));
 }
 
 type Point = (usize, usize);
@@ -53,10 +53,10 @@ fn fill_original_garden(garden: &[Vec<char>]) -> (usize, usize, usize) {
         let mut new_to_visit = HashSet::new();
         for &(x, y) in to_visit[step % 2].iter() {
             for (nx, ny) in [
-                (x > 0).then(|| (x - 1, y)),
-                (x < n - 1).then(|| (x + 1, y)),
-                (y > 0).then(|| (x, y - 1)),
-                (y < n - 1).then(|| (x, y + 1)),
+                (x > 0).then_some((x - 1, y)),
+                (x < n - 1).then_some((x + 1, y)),
+                (y > 0).then_some((x, y - 1)),
+                (y < n - 1).then_some((x, y + 1)),
             ]
             .iter()
             .flatten()
@@ -147,10 +147,10 @@ fn part2(garden: &[Vec<char>]) -> usize {
             let mut new_to_visit = HashSet::new();
             for &(x, y) in to_visit.iter() {
                 for (nx, ny) in [
-                    (x > 0).then(|| (x - 1, y)),
-                    (x < n - 1).then(|| (x + 1, y)),
-                    (y > 0).then(|| (x, y - 1)),
-                    (y < n - 1).then(|| (x, y + 1)),
+                    (x > 0).then_some((x - 1, y)),
+                    (x < n - 1).then_some((x + 1, y)),
+                    (y > 0).then_some((x, y - 1)),
+                    (y < n - 1).then_some((x, y + 1)),
                 ]
                 .iter()
                 .flatten()
