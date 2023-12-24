@@ -50,10 +50,10 @@ fn parse_input(lines: impl Iterator<Item = String>) -> (usize, usize, HashMap<Po
     let (row, col) = (grid.len(), grid[0].len());
 
     let mut tiles = HashMap::new();
-    for x in 0..row {
-        for y in 0..col {
-            if grid[x][y] != '#' {
-                tiles.insert((x, y), Tile::from(grid[x][y]));
+    for (x, r) in grid.iter().enumerate() {
+        for (y, &c) in r.iter().enumerate() {
+            if c != '#' {
+                tiles.insert((x, y), Tile::from(c));
             }
         }
     }
@@ -93,20 +93,18 @@ fn construct_graph(row: usize, col: usize, tiles: &HashMap<Point, Tile>) -> Grap
                 }
             }
             Tile::Slope(dir) => {
-                let Some((nx, ny)) = (match dir {
+                if let Some((nx, ny)) = match dir {
                     Dir::U => x.checked_sub(1).map(|x| (x, y)),
                     Dir::D => (x < row - 1).then_some((x + 1, y)),
                     Dir::L => y.checked_sub(1).map(|y| (x, y)),
                     Dir::R => (y < col - 1).then_some((x, y + 1)),
-                }) else {
-                    continue;
-                };
-
-                if tiles.contains_key(&(nx, ny)) {
-                    e.push(Adj {
-                        point: (nx, ny),
-                        distance: 1,
-                    });
+                } {
+                    if tiles.contains_key(&(nx, ny)) {
+                        e.push(Adj {
+                            point: (nx, ny),
+                            distance: 1,
+                        });
+                    }
                 }
             }
         }
@@ -165,8 +163,8 @@ fn dfs(
 
 fn solve(row: usize, col: usize, tiles: &HashMap<Point, Tile>) -> usize {
     let graph = construct_graph(row, col, tiles);
-    let start = graph.keys().filter(|&p| p.0 == 0).next().unwrap();
-    let end = graph.keys().filter(|&p| p.0 == row - 1).next().unwrap();
+    let start = graph.keys().find(|&p| p.0 == 0).unwrap();
+    let end = graph.keys().find(|&p| p.0 == row - 1).unwrap();
 
     dfs(&graph, *start, *end, &mut HashMap::new()).unwrap()
 }
