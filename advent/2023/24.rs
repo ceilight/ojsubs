@@ -74,46 +74,63 @@ fn part1(stones: &[Stone]) -> usize {
     count
 }
 
-fn gaussian_elimination(matrix: &mut [Vec<f64>]) -> Vec<f64> {
-    let size = matrix.len();
-    assert_eq!(size, matrix[0].len() - 1);
+// Last implementation of row reduction gave very strange result for some reason
+// so I'm rewriting this step-by-step
+#[allow(clippy::needless_range_loop)]
+fn solve_linear_system(matrix: &[Vec<f64>]) -> Option<Vec<f64>> {
+    let mut m = matrix.to_vec();
+    let size = m.len();
+    assert_eq!(size, m[0].len() - 1);
 
-    for i in 0..size - 1 {
-        for j in i..size - 1 {
-            echelon(matrix, i, j);
+    let mut row = 0;
+    for col in 0..size {
+        // find first non-zero row
+        let mut nxt = size;
+        for i in row..size {
+            if m[i][col] != 0.0 {
+                nxt = i;
+                break;
+            }
         }
-    }
-    for i in (1..size).rev() {
-        eliminate(matrix, i);
+        if nxt == size {
+            return None;
+        }
+        // swap it with the current row
+        m.swap(nxt, row);
+
+        // rescaling the current row
+        let scalar = m[row][col];
+        for j in 0..=size {
+            m[row][j] /= scalar;
+        }
+
+        // subtract other rows a scalar multiple of current row.
+        for i in 0..size {
+            if i == row {
+                continue;
+            }
+            let scalar = m[i][col];
+            for j in 0..=size {
+                m[i][j] -= scalar * m[row][j];  
+            }
+        }
+        row += 1;
     }
 
     let mut result: Vec<f64> = vec![0.0; size];
     for i in 0..size {
-        result[i] = matrix[i][size] / matrix[i][i];
+        result[i] = m[i][size];
     }
-    result
+
+    Some(result)
 }
 
-fn echelon(matrix: &mut [Vec<f64>], i: usize, j: usize) {
-    let size = matrix.len();
-    if matrix[i][i] != 0.0 {
-        let factor = matrix[j + 1][i] / matrix[i][i];
-        (i..size + 1).for_each(|k| {
-            matrix[j + 1][k] -= factor * matrix[i][k];
-        });
-    }
-}
-
-fn eliminate(matrix: &mut [Vec<f64>], i: usize) {
-    let size = matrix.len();
-    if matrix[i][i] != 0.0 {
-        for j in (1..i + 1).rev() {
-            let factor = matrix[j - 1][i] / matrix[i][i];
-            for k in (0..size + 1).rev() {
-                matrix[j - 1][k] -= factor * matrix[i][k];
-            }
-        }
-    }
+#[allow(dead_code)]
+#[rustfmt::skip]
+fn test() {
+    let x = vec![vec![1.0, 3.0, 5.0],
+                 vec![2.0, 4.0, 8.0]];
+    println!("{:?}", solve_linear_system(&x).unwrap());
 }
 
 #[rustfmt::skip]
@@ -128,13 +145,14 @@ fn part2(stones: &[Stone]) -> f64 {
     // Since t[i] is a scalar, vectors (P - p[i]) and (V - v[i]) are parallel, which
     // means the cross product between them must be zero:
     // => (P - p[i]) * (V - v[i]) = 0
-    // => P * V - P * v[i] - p[i] * V + p[i] * v[i] = 0
+    // => P * V - P * v[i] - p[i] * V + p[i] * v[i] == 0
     // => P * V + v[i] * P - p[i] * V = v[i] * p[i]
-    // The resulting equation is bilinear, but you can introduce T = P * V in the 1st term
-    // => T + v[i] * P - p[i] * V = v[i] * p[i]
-    // and it becomes a linear system of 9 unknowns (with 3 dummy ones T)
+    // The resulting equation is bilinear, but you can introduce K = P * V in the 1st term
+    // => K + v[i] * P - p[i] * V == v[i] * p[i]
+    // and it becomes a linear system of 9 unknowns (with 3 dummy K(Kx, Ky, Kz))
 
-    // This is just proof-of-concept, I actually used Python to solve this part :^)
+    // This is just proof-of-concept so the result might be off due to handling of
+    // floating-point numbers (it worked on my input however)
     let mut matrix = vec![];
 
     for Stone { base, delta } in &stones[..3] {
@@ -145,8 +163,8 @@ fn part2(stones: &[Stone]) -> f64 {
         matrix.push(vec![0.0, 0.0, 1.0,  vy, -vx, 0.0, -py,  px, 0.0, vy * px - vx * py]);
     }
 
-    let result = gaussian_elimination(&mut matrix);
+    let result = solve_linear_system(&matrix).unwrap();
 
-    // The order of the result should be Tx, Ty, Tz, Px, Py, Pz, Vx, Vy, Vz
+    // The order of the result should be Kx, Ky, Kz, Px, Py, Pz, Vx, Vy, Vz
     result[3] + result[4] + result[5]
 }
