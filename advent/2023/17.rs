@@ -104,7 +104,7 @@ fn solve(grid: &[Vec<usize>], min: usize, max: usize) -> usize {
                 Dir::R => (y < col - 1).then_some((x, y + 1)),
                 _ => None,
             } {
-                let streak_len =  if dir == state.dir {
+                let streak_len = if dir == state.dir {
                     state.streak_len + 1
                 } else {
                     1

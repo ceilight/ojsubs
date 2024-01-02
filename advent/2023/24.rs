@@ -111,7 +111,7 @@ fn solve_linear_system(matrix: &[Vec<f64>]) -> Option<Vec<f64>> {
             }
             let scalar = m[i][col];
             for j in 0..=size {
-                m[i][j] -= scalar * m[row][j];  
+                m[i][j] -= scalar * m[row][j];
             }
         }
         row += 1;
